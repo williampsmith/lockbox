@@ -1,24 +1,22 @@
 # lockbox
-A cloud based file storage system, implemented on top of a secure cryptographic protocol for trustless server hosting.
 
-Part 1:
+## A cloud based file storage system, implemented on top of a secure cryptographic protocol for trustless server hosting.
 
-key : value
+### Part 1:
 
-keyStore:
-username : publicKey
+Notation -- key : value
 
-dataStore:
+#### keyStore
+store `username : publicKey`
 
-logins/<u> : (x, MAC(x))
-x = Ep(Userdata) where Ep = block cipher encryption
-verify should not be done with RSA public key from keystore: leaks data about username??
-Maybe verify using public key, idk…
-verify should be done with MAC
+#### dataStore:
+`random_keys = PBKDF2(password, username, 512)`
+`(kh, kp, ks) = random_keys[:256], random_keys[256:384], random_keys[384:]`
 
-u = HMAC(k, username)
-k = PBKDF2(password, username, 256)
-p = PBKDF2(password, username, 128) 	// k guaranteed not to leak info about p?
+`x = E~kp~(Userdata)` where `E~kp~ = block cipher encryption on key kp`
+`u = HMAC(kh, username)`
+
+store `logins/<u> : (x, MAC(x))`
 
 TODO:
 write HMAC() function that generates random IV already, etc. Makes code cleaner.
@@ -30,17 +28,17 @@ O(n) updates, n = number of files stored in server. Not sure how they got O(n) h
 	<user>/dir_keys  : x || SignRSA(x)			x = RSA(ke, ka)
 	<user>/directory : y, MAC_ka(directory, y)	y = E_ke(r, k1, k2)
 	<user>files/r	    : z, MAC_k2(r, z)			z = E_k1(contents)
-	
+
 		r = random ID from directory listing
 		New files uploaded: generate new random r, k1, k2
 			^ which is probably where O(n) comes from since have to search to make sure it’s not used already
 
 Design 2:
-O(1) updates 
+O(1) updates
 
 	info/<user> : x || SignRSA(x)     			x = RSA(ke, ka, kn)
 ID	<user>/r	    : y || MAC_ka(filename, y)		y = E_ke(contents)
-			
+
 		including filename in MAC prevents malicious server from swapping files between IDs
 		E = CFB
 		MAC = SHA256_HMAC
