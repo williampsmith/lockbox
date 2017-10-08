@@ -11,9 +11,11 @@ store `username : publicKey`
 
 #### dataStore:
 `random_keys = PBKDF2(password, username, 512)`
+
 `(kh, kp, ks) = random_keys[:256], random_keys[256:384], random_keys[384:]`
 
 `x = E~kp~(Userdata)` where `E~kp~ = block cipher encryption on key kp`
+
 `u = HMAC(kh, username)`
 
 store `logins/<u> : (x, MAC(x))`
