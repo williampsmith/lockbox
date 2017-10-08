@@ -10,18 +10,17 @@ Notation -- key : value
 store `username : publicKey`
 
 #### dataStore:
-`random_keys = PBKDF2(password, username, 512)`
+`// kh is a 256 bit key, and kp is a 128 bit key`
+`(kh, kp) = PBKDF2(password, username, salt=SHA256(password), length=384)`
 
-`(kh, kp, ks) = random_keys[:256], random_keys[256:384], random_keys[384:]`
+`x = E_kp(Userdata)` where `E_kp` is a block cipher encryption on key `kp`
 
-`x = E~kp~(Userdata)` where `E~kp~ = block cipher encryption on key kp`
+`u = HMAC(kh, username)  // this will fail if password is incorrect`
 
-`u = HMAC(kh, username)`
-
-store `logins/<u> : (x, MAC(x))`
+store `logins/<u> : (x, RSA_SIG(publick_key(username), x))`
 
 TODO:
-write HMAC() function that generates random IV already, etc. Makes code cleaner.
+write `HMAC()` function that generates random IV already, etc. Makes code cleaner.
 
 
 Design 1:
