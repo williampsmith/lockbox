@@ -1,6 +1,5 @@
 package proj2
 
-
 // You MUST NOT change what you import.  If you add ANY additional
 // imports it will break the autograder, and we will be Very Upset.
 
@@ -17,7 +16,7 @@ import (
 
 	// Likewise useful for debugging etc
 	"encoding/hex"
-	
+
 	// UUIDs are generated right based on the crypto RNG
 	// so lets make life easier and use those too...
 	//
@@ -26,16 +25,16 @@ import (
 
 	// For the useful little debug printing function
 	"fmt"
-	"time"
 	"os"
 	"strings"
+	"time"
 
 	// I/O
 	"io"
-	
+
 	// Want to import errors
 	"errors"
-	
+
 	// These are imported for the structure definitions.  You MUST
 	// not actually call the functions however!!!
 	// You should ONLY call the cryptographic functions in the
@@ -45,14 +44,13 @@ import (
 	"crypto/rsa"
 )
 
-
 // This serves two purposes: It shows you some useful primitives and
 // it suppresses warnings for items not being imported
-func someUsefulThings(){
+func someUsefulThings() {
 	// Creates a random UUID
 	f := uuid.New()
 	debugMsg("UUID as string:%v", f.String())
-	
+
 	// Example of writing over a byte of f
 	f[0] = 10
 	debugMsg("UUID as string:%v", f.String())
@@ -60,10 +58,10 @@ func someUsefulThings(){
 	// takes a sequence of bytes and renders as hex
 	h := hex.EncodeToString([]byte("fubar"))
 	debugMsg("The hex: %v", h)
-	
+
 	// Marshals data into a JSON representation
 	// Will actually work with go structures as well
-	d,_ := json.Marshal(f)
+	d, _ := json.Marshal(f)
 	debugMsg("The json data: %v", string(d))
 	var g uuid.UUID
 	json.Unmarshal(d, &g)
@@ -75,14 +73,14 @@ func someUsefulThings(){
 	// And a random RSA key.  In this case, ignoring the error
 	// return value
 	var key *rsa.PrivateKey
-	key,_ = userlib.GenerateRSAKey()
+	key, _ = userlib.GenerateRSAKey()
 	debugMsg("Key is %v", key)
 }
 
 // Helper function: Takes the first 16 bytes and
 // converts it into the UUID type
 func bytesToUUID(data []byte) (ret uuid.UUID) {
-	for x := range(ret){
+	for x := range ret {
 		ret[x] = data[x]
 	}
 	return
@@ -90,7 +88,7 @@ func bytesToUUID(data []byte) (ret uuid.UUID) {
 
 // Helper function: Returns a byte slice of the specificed
 // size filled with random data
-func randomBytes(bytes int) (data []byte){
+func randomBytes(bytes int) (data []byte) {
 	data = make([]byte, bytes)
 	if _, err := io.ReadFull(userlib.Reader, data); err != nil {
 		panic(err)
@@ -104,23 +102,23 @@ var DebugPrint = false
 // the DebugPrint global is set.  All our testing ignores stderr,
 // so feel free to use this for any sort of testing you want
 func debugMsg(format string, args ...interface{}) {
-	if DebugPrint{
+	if DebugPrint {
 		msg := fmt.Sprintf("%v ", time.Now().Format("15:04:05.00000"))
 		fmt.Fprintf(os.Stderr,
-			msg + strings.Trim(format, "\r\n ") + "\n", args...)
+			msg+strings.Trim(format, "\r\n ")+"\n", args...)
 	}
 }
 
-
 // The structure definition for a user record
 type User struct {
-	Username string
+	Username   string
+	Password   string
+	PrivateKey string
+	PublicKey  string
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
 }
-
-
 
 // This creates a user.  It will only be called once for a user
 // (unless the keystore and datastore are cleared during testing purposes)
@@ -137,20 +135,41 @@ type User struct {
 // keystore and the datastore functions in the userlib library.
 
 // You can assume the user has a STRONG password
-func InitUser(username string, password string) (userdataptr *User, err error){
+func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
+	userdata.Username = username
+	userdata.Password = password
+	userdata.PrivateKey = userlib.GenerateRSAKey()
+	userdata.PublicKey = userdata.PrivateKey.PublicKey
+	userlib.KeystoreSet(username, userdata.PublicKey)
+	data := []byte(userdata)
+	ciphertext := make([]byte, userlib.BlockSize+len(data))
+
+	iv := ciphertext[:userlib.BlockSize]
+	if _, err := io.ReadFull(userlib.Reader, iv); err != nil {
+		panic(err)
+	}
+	symmetric_key := PBKDF2Key(
+		password,
+		[]byte("nosalt"), // TODO: change this
+		32,
+	)
+
+	cipher := CFBEncrypter(symmetric_key, iv)
+	cipher.XORKeyStream(ciphertext[userlib.BlockSize:], data)
+
+	h := userlib.NewSHA256() // TODO: Change this!! cannot hash username (low entropy)
+	h.Write(userdata.Username)
+	DatastoreSet(h.Sum(nil), ciphertext)
 	return &userdata, err
 }
-
 
 // This fetches the user information from the Datastore.  It should
 // fail with an error if the user/password is invalid, or if the user
 // data was corrupted, or if the user can't be found.
-func GetUser(username string, password string) (userdataptr *User, err error){
+func GetUser(username string, password string) (userdataptr *User, err error) {
 	return
 }
-
-
 
 // This stores a file in the datastore.
 //
@@ -158,21 +177,20 @@ func GetUser(username string, password string) (userdataptr *User, err error){
 func (userdata *User) StoreFile(filename string, data []byte) {
 }
 
-
 // This adds on to an existing file.
 //
 // Append should be efficient, you shouldn't rewrite or reencrypt the
 // existing file, but only whatever additional information and
 // metadata you need.
 
-func (userdata *User) AppendFile(filename string, data []byte) (err error){
+func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	return
 }
 
 // This loads a file from the Datastore.
 //
 // It should give an error if the file is corrupted in any way.
-func (userdata *User) LoadFile(filename string)(data []byte, err error) {
+func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	return
 }
 
@@ -180,7 +198,6 @@ func (userdata *User) LoadFile(filename string)(data []byte, err error) {
 // sharingRecord to serialized/deserialize in the data store.
 type sharingRecord struct {
 }
-
 
 // This creates a sharing record, which is a key pointing to something
 // in the datastore to share with the recipient.
@@ -193,11 +210,10 @@ type sharingRecord struct {
 // recipient can access the sharing record, and only the recipient
 // should be able to know the sender.
 
-func (userdata *User) ShareFile(filename string, recipient string)(
-	msgid string, err error){
-	return 
+func (userdata *User) ShareFile(filename string, recipient string) (
+	msgid string, err error) {
+	return
 }
-
 
 // Note recipient's filename can be different from the sender's filename.
 // The recipient should not be able to discover the sender's view on
@@ -208,7 +224,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	return nil
 }
 
-// Removes access for all others.  
-func (userdata *User) RevokeFile(filename string) (err error){
-	return 
+// Removes access for all others.
+func (userdata *User) RevokeFile(filename string) (err error) {
+	return
 }
