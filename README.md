@@ -77,6 +77,7 @@ Then I can store the same file at HMAC(filename0), HMAC(filename1), etc.
 <original user>/r1 : w, HMAC_ka(w)		w = E_ke(ke’, ka’, r2, filename)
 			 r2 : x, HMAC_ka’(x)		x = E_ke’(file contents)
 
+r1 = HMAC_kn(filename)
 For each new user we share r2 with, generate new r3, ke’’, ka’’, stores this info.
 Say we share with user 2.
 Original user stores information in r3, used to decrypt stuff at r2
@@ -89,6 +90,8 @@ signRSA1 = signed with user 1 private key
 
 User 2 names it with a different filename and stores at r4. User 2 also uses his universal master keys, ke2, ka2
 	<user 2> / r4 : z, HMAC_ka2(z)			z = ke2(ke’’, ka’’, r3)
+
+r4 = HMAC_kn2(new filename)
 
 Lets say there’s also a user 3, but original user decides to revoke access to user 3.
 Original user changes ka’, ke’ and needs to re-encrypt location r2 and also update location r3.
