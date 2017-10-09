@@ -6,12 +6,22 @@
 
 Notation -- key : value
 
+#### User struct
+```
+Username
+PrivateKey
+PublicKey
+... // add to this
+```
+
 #### keyStore
 store `username : publicKey`
 
 #### dataStore:
-`// kh is a 256 bit key, and kp is a 128 bit key`
-`(kh, kp) = PBKDF2(password, username, salt=SHA256(password), length=384)`
+```
+// kh is a 256 bit key, and kp is a 128 bit key
+(kh, kp) = PBKDF2(password, username, salt=SHA256(password), length=384)
+```
 
 `x = E_kp(Userdata)` where `E_kp` is a block cipher encryption on key `kp`
 
