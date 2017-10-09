@@ -74,6 +74,10 @@ Then I can store the same file at HMAC(filename0), HMAC(filename1), etc.
 
 ### Part 2:
 
+Each user has 3 symmetric master keys: ke, ka, kn
+		2 new sharing keys ke', ka' per file shared
+		For each user they share with, generate 2 new keys ke'', ka''
+
 <original user>/r1 : w, HMAC_ka(w)		w = E_ke(ke’, ka’, r2, filename)
 			 r2 : x, HMAC_ka’(x)		x = E_ke’(file contents)
 
