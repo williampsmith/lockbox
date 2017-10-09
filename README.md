@@ -70,3 +70,28 @@ My approach for efficient append is as follows:
 
 FID at HMAC(filename) will contain a counter of how many appends were made for the filename
 Then I can store the same file at HMAC(filename0), HMAC(filename1), etc.
+
+
+### Part 2:
+
+<original user>/r1 : w, HMAC_ka(w)	w = E_ke(ke’, ka’, r2, filename)
+			 r2 : x, HMAC_ka’(x)		x = E_ke’(file contents)
+
+For each new user we share r2 with, generate new r3, ke’’, ka’’, stores this info.
+Say we share with user 2.
+Original user stores information in r3, used to decrypt stuff at r2
+
+			r3 : y, ka’’(y)			y = E_ke’’(ke’, ka’, r2)
+
+Original user then sends to user 2: m, signRSA1(m) 	m = RSA2(ke’’, ka’’, r3)
+RSA2 = user 2 public key
+signRSA1 = signed with user 1 private key
+
+User 2 names it with a different filename and stores at r4. User 2 also uses his universal master keys, ke2, ka2
+	<user 2> / r4 : z, ka2(z)			z = ke2(ke’’, ka’’, r3)
+
+Lets say there’s also a user 3, but original user decides to revoke access to user 3.
+Original user changes ka’, ke’ and needs to re-encrypt location r2 and also update location r3.
+
+
+
