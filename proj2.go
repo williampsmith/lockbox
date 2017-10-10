@@ -176,7 +176,7 @@ type User struct {
 	Username   string
 	Password   string
 	PrivateKey rsa.PrivateKey
-	PublicKey  string
+	PublicKey  string // TODO: change the type here?
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
