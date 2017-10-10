@@ -119,7 +119,7 @@ func debugMsg(format string, args ...interface{}) {
 	}
 }
 
-func CFBEncrypt(key []byte, data []byte) ([]byte) {
+func CFBEncrypt(key []byte, data []byte) []byte {
 	// key is 16 bytes == BlockSize is 16 bytes == 128 bits
 	ciphertext := make([]byte, userlib.BlockSize + len(data))
 	iv := ciphertext[:userlib.BlockSize]
