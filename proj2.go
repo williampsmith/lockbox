@@ -69,14 +69,6 @@ func someUsefulThings() {
 
 	// debugMsg("marshal size %v, unmarshal size %v, original %v", len(d), len(g), len(f))
 
-	// userdata := User{"a","b","c","d"}
-	// mUD, _ := json.Marshal(userdata)
-	// debugMsg("The json userdata: %v", string(mUD))
-	// var us User
-	// json.Unmarshal(mUD, &us)
-	// debugMsg("Unmashaled userdata %v", us)
-	// debugMsg("marshal size %v", len(mUD))
-
 	// This creates an error type
 	debugMsg("Creation of error %v", errors.New("This is an error"))
 
@@ -85,6 +77,18 @@ func someUsefulThings() {
 	var key *rsa.PrivateKey
 	key, _ = userlib.GenerateRSAKey()
 	debugMsg("Key is %v", key)
+
+	// userdata := User{"a","b", *key,"d"}
+	// debugMsg("Unmarshaled userdata %v", userdata)
+	// mUD, _ := json.Marshal(userdata)
+	// debugMsg("The marshaled json userdata: %v", string(mUD))
+	// var ud User
+	// json.Unmarshal(mUD, &ud)
+	// debugMsg("Unmarshaled userdata %v", ud)
+	// mUD2, _ := json.Marshal(ud)
+	// debugMsg("Marshal size %v", len(mUD))
+	// debugMsg("Marshal size %v", len(mUD2))
+	// debugMsg("Marshal equal %v", string(mUD) == string(mUD2))
 }
 
 // Helper function: Takes the first 16 bytes and
@@ -171,7 +175,7 @@ func Hash(dataToHash []byte) []byte {
 type User struct {
 	Username   string
 	Password   string
-	PrivateKey *rsa.PrivateKey
+	PrivateKey rsa.PrivateKey
 	PublicKey  string
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -197,10 +201,12 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdata.Username = username
 	userdata.Password = password
-	userdata.PrivateKey, err = userlib.GenerateRSAKey()
+	key, err := userlib.GenerateRSAKey()
 	if err != nil {
 		panic(err)
 	}
+
+	userdata.PrivateKey = *key
 
 	// TODO: Use API created above
 	// TODO: Marshal any data structure that's not in string or []byte
