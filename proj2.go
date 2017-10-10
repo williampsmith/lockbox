@@ -67,6 +67,16 @@ func someUsefulThings() {
 	json.Unmarshal(d, &g)
 	debugMsg("Unmashaled data %v", g.String())
 
+	// debugMsg("marshal size %v, unmarshal size %v, original %v", len(d), len(g), len(f))
+
+	// userdata := User{"a","b","c","d"}
+	// mUD, _ := json.Marshal(userdata)
+	// debugMsg("The json userdata: %v", string(mUD))
+	// var us User
+	// json.Unmarshal(mUD, &us)
+	// debugMsg("Unmashaled userdata %v", us)
+	// debugMsg("marshal size %v", len(mUD))
+
 	// This creates an error type
 	debugMsg("Creation of error %v", errors.New("This is an error"))
 
@@ -109,11 +119,58 @@ func debugMsg(format string, args ...interface{}) {
 	}
 }
 
+func CFBEncrypt(key []byte, data []byte) ([]byte) {
+	// key is 16 bytes
+	ciphertext := make([]byte, userlib.BlockSize + len(data))
+	iv := ciphertext[:userlib.BlockSize]
+
+	// Load random data to iv
+	if _, err := io.ReadFull(userlib.Reader, iv); err != nil {
+		panic(err)
+	}
+
+	cipher := userlib.CFBEncrypter(key, iv)
+	cipher.XORKeyStream(ciphertext[userlib.BlockSize:], data)
+
+	return ciphertext
+}
+
+func CFBDecrypt(key []byte, ciphertext []byte) []byte {
+	plaintext := make([]byte, len(ciphertext[userlib.BlockSize:]))
+	iv := ciphertext[:userlib.BlockSize]
+
+	cipher := userlib.CFBDecrypter(key, iv)
+	cipher.XORKeyStream(plaintext, ciphertext[userlib.BlockSize:])
+
+	return plaintext
+}
+
+func HMAC(key []byte, data []byte) []byte {
+	hmac := userlib.NewHMAC(key)
+	hmac.Write(data)
+	return hmac.Sum(nil)
+}
+
+func VerifyHMAC(key []byte, data []byte, MAC []byte) bool {
+	// Return true if correct, false otherwise
+	hmac := userlib.NewHMAC(key)
+	hmac.Write(data)
+	expectedMAC := hmac.Sum(nil)
+	return userlib.Equal(MAC, expectedMAC)
+}
+
+func Hash(dataToHash []byte) []byte {
+	hasher := userlib.NewSHA256()
+	hasher.Write(dataToHash)
+	hash := hasher.Sum(nil)
+	return hash
+}
+
 // The structure definition for a user record
 type User struct {
 	Username   string
 	Password   string
-	PrivateKey string
+	PrivateKey *rsa.PrivateKey
 	PublicKey  string
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
@@ -139,28 +196,37 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdata.Username = username
 	userdata.Password = password
-	userdata.PrivateKey = userlib.GenerateRSAKey()
-	userdata.PublicKey = userdata.PrivateKey.PublicKey
-	userlib.KeystoreSet(username, userdata.PublicKey)
-	data := []byte(userdata)
-	ciphertext := make([]byte, userlib.BlockSize+len(data))
-
-	iv := ciphertext[:userlib.BlockSize]
-	if _, err := io.ReadFull(userlib.Reader, iv); err != nil {
+	userdata.PrivateKey, err = userlib.GenerateRSAKey()
+	if err != nil {
 		panic(err)
 	}
-	symmetric_key := PBKDF2Key(
-		password,
-		[]byte("nosalt"), // TODO: change this
-		32,
-	)
 
-	cipher := CFBEncrypter(symmetric_key, iv)
-	cipher.XORKeyStream(ciphertext[userlib.BlockSize:], data)
+	// TODO: Use API created above
+	// TODO: Marshal any data structure that's not in string or []byte
+	// TODO: Convert marshalled data and strings to []byte()
 
-	h := userlib.NewSHA256() // TODO: Change this!! cannot hash username (low entropy)
-	h.Write(userdata.Username)
-	DatastoreSet(h.Sum(nil), ciphertext)
+	// Old code below:
+	// userdata.PublicKey = userdata.PrivateKey.PublicKey
+	// userlib.KeystoreSet(username, userdata.PublicKey)
+	// data := []byte(userdata)
+	// ciphertext := make([]byte, userlib.BlockSize+len(data))
+
+	// iv := ciphertext[:userlib.BlockSize]
+	// if _, err := io.ReadFull(userlib.Reader, iv); err != nil {
+	// 	panic(err)
+	// }
+	// symmetric_key := PBKDF2Key(
+	// 	password,
+	// 	[]byte("nosalt"), // TODO: change this
+	// 	32,
+	// )
+
+	// cipher := CFBEncrypter(symmetric_key, iv)
+	// cipher.XORKeyStream(ciphertext[userlib.BlockSize:], data)
+
+	// h := userlib.NewSHA256() // TODO: Change this!! cannot hash username (low entropy)
+	// h.Write(userdata.Username)
+	// DatastoreSet(h.Sum(nil), ciphertext)
 	return &userdata, err
 }
 
