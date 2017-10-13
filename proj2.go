@@ -125,7 +125,7 @@ func debugMsg(format string, args ...interface{}) {
 
 func CFBEncrypt(key []byte, data []byte) []byte {
 	// key is 16 bytes == BlockSize is 16 bytes == 128 bits
-	ciphertext := make([]byte, userlib.BlockSize + len(data))
+	ciphertext := make([]byte, userlib.BlockSize+len(data))
 	iv := ciphertext[:userlib.BlockSize]
 
 	// Load random data to iv
@@ -173,13 +173,20 @@ func Hash(dataToHash []byte) []byte {
 
 // The structure definition for a user record
 type User struct {
-	Username   string
-	Password   string
-	PrivateKey rsa.PrivateKey
-	PublicKey  string // TODO: change the type here?
+	Username    string
+	PrivateKey  rsa.PrivateKey
+	PublicKey   rsa.PublicKey
+	OwnedFiles  map[string][]byte // TODO: check
+	SharedFiles map[string][]byte // TODO: check
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
+}
+
+// Helper struct to hold pairs of E(data), MAC(E(data))
+type EMAC struct {
+	ciphertext []byte
+	mac        []byte
 }
 
 // This creates a user.  It will only be called once for a user
@@ -200,13 +207,38 @@ type User struct {
 func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdata.Username = username
-	userdata.Password = password
 	key, err := userlib.GenerateRSAKey()
 	if err != nil {
 		panic(err)
 	}
 
 	userdata.PrivateKey = *key
+	userdata.PublicKey = key.PublicKey
+	masterKey := userlib.PBKDF2Key(
+		[]byte(password),
+		Hash([]byte(username)), // TODO: change this
+		48,
+	)
+
+	macKey, encryptKey := masterKey[:16], masterKey[16:]
+	path := "logins/" + string(HMAC(macKey, []byte(username)))
+	userJson, err := json.Marshal(userdata)
+	if err != nil {
+		panic(err)
+	}
+
+	ciphertext := CFBEncrypt(encryptKey, userJson)
+	emac := EMAC{
+		ciphertext: ciphertext,
+		mac:        HMAC(macKey, ciphertext),
+	}
+	emacJSON, err := json.Marshal(emac)
+	if err != nil {
+		panic(err)
+	}
+
+	userlib.KeystoreSet(username, userdata.PublicKey)
+	userlib.DatastoreSet(path, emacJSON)
 
 	// TODO: Use API created above
 	// TODO: Marshal any data structure that's not in string or []byte
