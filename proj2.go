@@ -216,7 +216,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.PublicKey = key.PublicKey
 	masterKey := userlib.PBKDF2Key(
 		[]byte(password),
-		Hash([]byte(username)), // TODO: change this
+		Hash([]byte(username)),
 		48,
 	)
 
@@ -239,7 +239,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	userlib.KeystoreSet(username, userdata.PublicKey)
 	userlib.DatastoreSet(path, emacJSON)
-
 	return &userdata, err
 }
 
@@ -247,6 +246,42 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 // fail with an error if the user/password is invalid, or if the user
 // data was corrupted, or if the user can't be found.
 func GetUser(username string, password string) (userdataptr *User, err error) {
+	masterKey := userlib.PBKDF2Key(
+		[]byte(password),
+		Hash([]byte(username)),
+		48,
+	)
+
+	macKey, encryptKey := masterKey[:16], masterKey[16:]
+	path := "logins/" + string(HMAC(macKey, []byte(username)))
+	data, ok := userlib.DatastoreGet(path)
+
+	// If this fails, did not find the file. Either
+	// Username/password is bad or path tampered with
+	if !ok {
+		return nil, errors.New("Error finding the file.")
+	}
+
+	var emac EMAC
+	err = json.Unmarshal(data, &emac)
+	if err != nil {
+		panic(err)
+	}
+
+	// check MAC of encrypted data to ensure no tampering
+	mac := HMAC(macKey, emac.ciphertext)
+	if !userlib.Equal(mac, emac.mac) {
+		// TODO: Remove. FOR DEBUGGING
+		fmt.Printf("macKey1: %s, macKey2: %s", string(macKey), string(emac.mac))
+		return nil, errors.New("Error. Data has been tampered with.")
+	}
+
+	plaintext := CFBDecrypt(encryptKey, emac.ciphertext)
+	err = json.Unmarshal(plaintext, userdataptr)
+	if err != nil {
+		panic(err)
+	}
+
 	return
 }
 
