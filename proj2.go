@@ -272,8 +272,11 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	// check MAC of encrypted data to ensure no tampering
 	mac := HMAC(macKey, emac.ciphertext)
 	if !userlib.Equal(mac, emac.mac) {
-		// TODO: Remove. FOR DEBUGGING
-		fmt.Printf("Computed MAC: %s, Stored MAC: %s \n", hex.EncodeToString(macKey), hex.EncodeToString(emac.mac))
+		fmt.Printf( // TODO: Remove. FOR DEBUGGING
+			"Computed MAC: %s, Stored MAC: %s \n",
+			hex.EncodeToString(macKey),
+			hex.EncodeToString(emac.mac),
+		)
 		return nil, errors.New("Error. Data has been tampered with.")
 	}
 
