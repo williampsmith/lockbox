@@ -217,10 +217,10 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	masterKey := userlib.PBKDF2Key(
 		[]byte(password),
 		Hash([]byte(username)),
-		48,
+		32,
 	)
 
-	macKey, encryptKey := masterKey[:16], masterKey[16:]
+	macKey, encryptKey := masterKey[:userlib.AESKeySize], masterKey[userlib.AESKeySize:]
 	path := "logins/" + string(HMAC(macKey, []byte(username)))
 	userJSON, err := json.Marshal(userdata)
 	if err != nil {
