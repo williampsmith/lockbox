@@ -185,8 +185,8 @@ type User struct {
 
 // Helper struct to hold pairs of E(data), MAC(E(data))
 type EMAC struct {
-	ciphertext []byte
-	mac        []byte
+	Ciphertext []byte
+	Mac        []byte
 }
 
 // This creates a user.  It will only be called once for a user
@@ -230,8 +230,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	ciphertext := CFBEncrypt(encryptKey, userJSON)
 	fmt.Printf("Stored MAC: %s \n", hex.EncodeToString(HMAC(macKey, ciphertext)))
 	emac := EMAC{
-		ciphertext: ciphertext,
-		mac:        HMAC(macKey, ciphertext),
+		Ciphertext: ciphertext,
+		Mac:        HMAC(macKey, ciphertext),
 	}
 	emacJSON, err := json.Marshal(emac)
 	if err != nil {
@@ -270,17 +270,17 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	// check MAC of encrypted data to ensure no tampering
-	mac := HMAC(macKey, emac.ciphertext)
-	if !userlib.Equal(mac, emac.mac) {
+	mac := HMAC(macKey, emac.Ciphertext)
+	if !userlib.Equal(mac, emac.Mac) {
 		fmt.Printf( // TODO: Remove. FOR DEBUGGING
 			"Computed MAC: %s, Stored MAC: %s \n",
 			hex.EncodeToString(macKey),
-			hex.EncodeToString(emac.mac),
+			hex.EncodeToString(emac.Mac),
 		)
 		return nil, errors.New("Error. Data has been tampered with.")
 	}
 
-	plaintext := CFBDecrypt(encryptKey, emac.ciphertext)
+	plaintext := CFBDecrypt(encryptKey, emac.Ciphertext)
 	err = json.Unmarshal(plaintext, userdataptr)
 	if err != nil {
 		panic(err)
