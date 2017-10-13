@@ -240,32 +240,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userlib.KeystoreSet(username, userdata.PublicKey)
 	userlib.DatastoreSet(path, emacJSON)
 
-	// TODO: Use API created above
-	// TODO: Marshal any data structure that's not in string or []byte
-	// TODO: Convert marshalled data and strings to []byte()
-
-	// Old code below:
-	// userdata.PublicKey = userdata.PrivateKey.PublicKey
-	// userlib.KeystoreSet(username, userdata.PublicKey)
-	// data := []byte(userdata)
-	// ciphertext := make([]byte, userlib.BlockSize+len(data))
-
-	// iv := ciphertext[:userlib.BlockSize]
-	// if _, err := io.ReadFull(userlib.Reader, iv); err != nil {
-	// 	panic(err)
-	// }
-	// symmetric_key := PBKDF2Key(
-	// 	password,
-	// 	[]byte("nosalt"), // TODO: change this
-	// 	32,
-	// )
-
-	// cipher := CFBEncrypter(symmetric_key, iv)
-	// cipher.XORKeyStream(ciphertext[userlib.BlockSize:], data)
-
-	// h := userlib.NewSHA256() // TODO: Change this!! cannot hash username (low entropy)
-	// h.Write(userdata.Username)
-	// DatastoreSet(h.Sum(nil), ciphertext)
 	return &userdata, err
 }
 
