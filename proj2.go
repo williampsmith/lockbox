@@ -250,7 +250,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	masterKey := userlib.PBKDF2Key(
 		[]byte(password),
 		Hash([]byte(username)),
-		48,
+		32,
 	)
 
 	macKey, encryptKey := masterKey[:16], masterKey[16:]
