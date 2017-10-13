@@ -222,12 +222,12 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 
 	macKey, encryptKey := masterKey[:16], masterKey[16:]
 	path := "logins/" + string(HMAC(macKey, []byte(username)))
-	userJson, err := json.Marshal(userdata)
+	userJSON, err := json.Marshal(userdata)
 	if err != nil {
 		panic(err)
 	}
 
-	ciphertext := CFBEncrypt(encryptKey, userJson)
+	ciphertext := CFBEncrypt(encryptKey, userJSON)
 	emac := EMAC{
 		ciphertext: ciphertext,
 		mac:        HMAC(macKey, ciphertext),
