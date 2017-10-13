@@ -228,7 +228,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	ciphertext := CFBEncrypt(encryptKey, userJSON)
-	fmt.Printf("Stored MAC: %s \n", HMAC(macKey, ciphertext))
+	fmt.Printf("Stored MAC: %s \n", hex.EncodeToString(HMAC(macKey, ciphertext)))
 	emac := EMAC{
 		ciphertext: ciphertext,
 		mac:        HMAC(macKey, ciphertext),
@@ -273,7 +273,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	mac := HMAC(macKey, emac.ciphertext)
 	if !userlib.Equal(mac, emac.mac) {
 		// TODO: Remove. FOR DEBUGGING
-		fmt.Printf("Computed MAC: %s, Stored MAC: %s \n", macKey, emac.mac)
+		fmt.Printf("Computed MAC: %s, Stored MAC: %s \n", hex.EncodeToString(macKey), hex.EncodeToString(emac.mac))
 		return nil, errors.New("Error. Data has been tampered with.")
 	}
 
