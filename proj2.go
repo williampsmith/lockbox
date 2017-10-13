@@ -280,13 +280,14 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		return nil, errors.New("Error. Data has been tampered with.")
 	}
 
+	var userdata User
 	plaintext := CFBDecrypt(encryptKey, emac.Ciphertext)
-	err = json.Unmarshal(plaintext, userdataptr)
+	err = json.Unmarshal(plaintext, &userdata)
 	if err != nil {
 		panic(err)
 	}
 
-	return
+	return &userdata, err
 }
 
 // This stores a file in the datastore.
