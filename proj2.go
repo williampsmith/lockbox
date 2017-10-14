@@ -158,10 +158,7 @@ func HMAC(key []byte, data []byte) []byte {
 
 func VerifyHMAC(key []byte, data []byte, MAC []byte) bool {
 	// Return true if correct, false otherwise
-	hmac := userlib.NewHMAC(key)
-	hmac.Write(data)
-	expectedMAC := hmac.Sum(nil)
-	return userlib.Equal(MAC, expectedMAC)
+	return userlib.Equal(MAC, HMAC(key, data))
 }
 
 func Hash(dataToHash []byte) []byte {
@@ -228,7 +225,6 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	ciphertext := CFBEncrypt(encryptKey, userJSON)
-	fmt.Printf("Stored MAC: %s \n", hex.EncodeToString(HMAC(macKey, ciphertext)))
 	emac := EMAC{
 		Ciphertext: ciphertext,
 		Mac:        HMAC(macKey, ciphertext),
@@ -270,13 +266,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	}
 
 	// check MAC of encrypted data to ensure no tampering
-	mac := HMAC(macKey, emac.Ciphertext)
-	if !userlib.Equal(mac, emac.Mac) {
-		fmt.Printf( // TODO: Remove. FOR DEBUGGING
-			"Computed MAC: %s, Stored MAC: %s \n",
-			hex.EncodeToString(macKey),
-			hex.EncodeToString(emac.Mac),
-		)
+	if !VerifyHMAC(macKey, emac.Ciphertext, emac.Mac) {
 		return nil, errors.New("Error. Data has been tampered with.")
 	}
 
