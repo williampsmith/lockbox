@@ -353,7 +353,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	fileMAC := HMAC(fileMacKey, ciphertext)
 	// ciphertext size == len(IV) + dataLen; len(IV) == userlib.Blocksize
 	// MAC size == 32 bytes
-	fileData := make([]byte, 0, userlib.HashSize + len(ciphertext)) // enough to hold MAC if file size is small
+	fileData := make([]byte, 0, userlib.HashSize+len(ciphertext)) // enough to hold MAC if file size is small
 	fileData = extend(fileData, fileMAC)
 	fileData = extend(fileData, ciphertext)
 
@@ -402,7 +402,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	// update metadata
 	dataLen := uint(len(data))
 	revisionMetadata.FileSize += dataLen
-	revisionMetadata.NumRevisions += 1
+	revisionMetadata.NumRevisions++
 	revisionMetadata.RevisionSizes = append(
 		revisionMetadata.RevisionSizes,
 		dataLen,
@@ -481,7 +481,9 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	j := 0
 	// TODO: are these int conversion safe?
 	for i := 0; i < int(revisionMetadata.NumRevisions); i++ {
-		mac, ciphertext := file[j:j+16], file[j+16:j+16+int(revisionMetadata.RevisionSizes[i])]
+		offset := j + userlib.HashSize
+		mac := file[j:offset]
+		ciphertext := file[offset : offset+int(revisionMetadata.RevisionSizes[i])]
 		// check MAC of encrypted data to ensure no tampering
 		if !VerifyHMAC(fileMetaData.MACKey, ciphertext, mac) {
 			return nil, errors.New("File Data has been tampered with.")
