@@ -491,7 +491,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		}
 		plaintext := CFBDecrypt(fileMetaData.EncryptKey, ciphertext)
 		fileData = extend(fileData, plaintext)
-		j += 16 + int(revisionMetadata.RevisionSizes[i])
+		j += userlib.HashSize + int(revisionMetadata.RevisionSizes[i])
 	}
 
 	return fileData, err
