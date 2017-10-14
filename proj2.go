@@ -349,14 +349,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	metaDataPath := "meta/" + fileID.String()
 	userlib.DatastoreSet(metaDataPath, sharedMetadataJSON)
 
-	dataJSON, err := json.Marshal(data)
-	if err != nil {
-		panic(err)
-	}
-
-	ciphertext := CFBEncrypt(fileEncryptKey, dataJSON)
+	ciphertext := CFBEncrypt(fileEncryptKey, data)
 	fileMAC := HMAC(fileMacKey, ciphertext)
-	fileData := make([]byte, 0, dataLen*2+64) // enough to hold MAC if file size is small
+	// ciphertext size == len(IV) + dataLen; len(IV) == userlib.Blocksize
+	// MAC size == 32 bytes
+	fileData := make([]byte, 0, userlib.HashSize + len(ciphertext)) // enough to hold MAC if file size is small
 	fileData = extend(fileData, fileMAC)
 	fileData = extend(fileData, ciphertext)
 
