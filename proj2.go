@@ -323,7 +323,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 
 	// initialize data revision metadata
 	dataLen := uint(len(data))
-	revisionSizes := make([]uint, 1)
+	var revisionSizes []uint
 	revisionSizes = append(revisionSizes, dataLen)
 
 	revisionMetadata := RevisionMetadata{
