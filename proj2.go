@@ -286,8 +286,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	return &userdata, err
 }
 
-const INITIAL_REVISION_LEN = 20
-
 type Revision struct {
 	Length int
 	Data   []byte
@@ -311,18 +309,17 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 
 	// initialize data revision history
 	dataLen := len(data)
-	revisionHistory := make([]Revision, INITIAL_REVISION_LEN)
-	initialRevision := Revision{
+	var revisionHistory []Revision
+	revisionHistory = append(revisionHistory, Revision{
 		Length: dataLen,
 		Data:   data,
-	}
-	revisionHistory[0] = initialRevision
-	datatJSON, err := json.Marshal(revisionHistory)
+	})
+	dataJSON, err := json.Marshal(revisionHistory)
 	if err != nil {
 		panic(err)
 	}
 
-	ciphertext := CFBEncrypt(fileEncryptKey, datatJSON)
+	ciphertext := CFBEncrypt(fileEncryptKey, dataJSON)
 	fileJSON, err := json.Marshal(EMAC{
 		Ciphertext: ciphertext,
 		Mac:        HMAC(fileMacKey, ciphertext),
