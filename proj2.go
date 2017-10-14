@@ -377,7 +377,69 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // metadata you need.
 
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
-	return
+	fileMetaData, ok := userdata.OwnedFiles[filename]
+	if !ok {
+		return errors.New("File not found, please check filename")
+	}
+
+	filePath := "file/" + fileMetaData.FileID.String()
+	metadataPath := "meta/" + fileMetaData.FileID.String()
+
+	// fetch and verify file metadata
+	sharedMetadataJSON, ok := userlib.DatastoreGet(metadataPath)
+	if !ok {
+		return errors.New("Metadata not in datastore, may have been moved")
+	}
+	var sharedMetadata SharedMetadata
+	err = json.Unmarshal(sharedMetadataJSON, &sharedMetadata)
+	if err != nil {
+		panic(err)
+	}
+	if !VerifyHMAC(
+		fileMetaData.MACKey,
+		sharedMetadata.Metadata,
+		sharedMetadata.MetadataMAC,
+	) {
+		return errors.New("File metadata has been tampered with")
+	}
+	var revisionMetadata RevisionMetadata
+	err = json.Unmarshal(sharedMetadata.Metadata, &revisionMetadata)
+	if err != nil {
+		panic(err)
+	}
+
+	// update metadata
+	dataLen := uint(len(data))
+	revisionMetadata.FileSize += dataLen
+	revisionMetadata.NumRevisions += 1
+	revisionMetadata.RevisionSizes = append(
+		revisionMetadata.RevisionSizes,
+		dataLen,
+	)
+	newRevisionMetadataJSON, err := json.Marshal(revisionMetadata)
+	if err != nil {
+		panic(err)
+	}
+	sharedMetadata.Metadata = newRevisionMetadataJSON
+	sharedMetadata.MetadataMAC = HMAC(fileMetaData.MACKey, newRevisionMetadataJSON)
+	newSharedMetadataJSON, err := json.Marshal(sharedMetadata)
+	if err != nil {
+		panic(err)
+	}
+	userlib.DatastoreSet(metadataPath, newSharedMetadataJSON)
+
+	// append to file
+	file, ok := userlib.DatastoreGet(filePath)
+	if !ok {
+		return errors.New("File not in datastore, may have been moved")
+	}
+	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)
+	mac := HMAC(fileMetaData.MACKey, ciphertext)
+	file = extend(file, mac)
+	file = extend(file, ciphertext)
+	userlib.DatastoreSet(filePath, file)
+
+	return err
 }
 
 // This loads a file from the Datastore.
