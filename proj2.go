@@ -441,8 +441,11 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 // It should give an error if the file is corrupted in any way.
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
-	if !ok {
-		return nil, errors.New("File not found, please check filename")
+	if !ok { // could be shared instead of owned
+		fileMetaData, ok = userdata.SharedFiles[filename]
+		if !ok {
+			return nil, errors.New("File not found, please check filename")
+		}
 	}
 
 	filePath := "file/" + fileMetaData.FileID.String()
