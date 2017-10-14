@@ -215,8 +215,12 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		panic(err)
 	}
 
+	userdata.OwnedFiles = make(map[string]FileMetadata)
+	userdata.SharedFiles = make(map[string]FileMetadata)
+
 	userdata.PrivateKey = *key
 	userdata.PublicKey = key.PublicKey
+
 	masterKey := userlib.PBKDF2Key(
 		[]byte(password),
 		Hash([]byte(username)),
