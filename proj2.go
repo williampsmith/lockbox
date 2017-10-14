@@ -286,12 +286,6 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	return &userdata, err
 }
 
-// TODO: remove
-type Revision struct {
-	Length int
-	Data   []byte
-}
-
 type RevisionMetadata struct {
 	FileSize      uint
 	NumRevisions  uint
