@@ -273,7 +273,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 
 	// check MAC of encrypted data to ensure no tampering
 	if !VerifyHMAC(macKey, emac.Ciphertext, emac.Mac) {
-		return nil, errors.New("Error. Data has been tampered with.")
+		return nil, errors.New("Error. User Data has been tampered with.")
 	}
 
 	var userdata User
@@ -290,7 +290,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 //
 // The name of the file should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
-	fileID := uuid.New()
+	fileID := uuid.New() // random identifier
 	fileEncryptKey := randomBytes(16)
 	fileMacKey := randomBytes(16)
 	fileMetadata := FileMetadata{
@@ -327,7 +327,32 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 //
 // It should give an error if the file is corrupted in any way.
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
-	return
+	fileMetaData, ok := userdata.OwnedFiles[filename]
+	if !ok {
+		return nil, errors.New("File not found! Please check filename.")
+	}
+
+	encryptKey := fileMetaData.EncryptKey
+	macKey := fileMetaData.MACKey
+	path := "file/" + fileMetaData.FileID.String()
+	dataJSON, ok := userlib.DatastoreGet(path)
+	if !ok {
+		return nil, errors.New("File not in datastore. May have been moved!")
+	}
+
+	var emac EMAC
+	err = json.Unmarshal(dataJSON, &emac)
+	if err != nil {
+		panic(err)
+	}
+
+	// check MAC of encrypted data to ensure no tampering
+	if !VerifyHMAC(macKey, emac.Ciphertext, emac.Mac) {
+		return nil, errors.New("Error. File Data has been tampered with.")
+	}
+
+	fileData := CFBDecrypt(encryptKey, emac.Ciphertext)
+	return fileData, err
 }
 
 // You may want to define what you actually want to pass as a
