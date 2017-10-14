@@ -294,7 +294,6 @@ type Revision struct {
 // This stores a file in the datastore.
 //
 // The name of the file should NOT be revealed to the datastore!
-// TODO: differentiate between owner and user somehow
 // This will determine where the file metadata is stored in user struct
 func (userdata *User) StoreFile(filename string, data []byte) {
 	fileID := uuid.New() // random identifier
