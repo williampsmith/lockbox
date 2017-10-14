@@ -478,7 +478,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		return nil, errors.New("File not in datastore, may have been moved")
 	}
 
-	fileData := make([]byte, 0)
+	var fileData []byte
 	j := 0
 	// TODO: are these int conversion safe?
 	for i := 0; i < int(revisionMetadata.NumRevisions); i++ {
