@@ -168,13 +168,19 @@ func Hash(dataToHash []byte) []byte {
 	return hash
 }
 
+type FileMetadata struct {
+	FileID     uuid.UUID
+	EncryptKey []byte
+	MACKey     []byte
+}
+
 // The structure definition for a user record
 type User struct {
 	Username    string
 	PrivateKey  rsa.PrivateKey
 	PublicKey   rsa.PublicKey
-	OwnedFiles  map[string][]byte // TODO: check
-	SharedFiles map[string][]byte // TODO: check
+	OwnedFiles  map[string]FileMetadata
+	SharedFiles map[string]FileMetadata
 	// You can add other fields here if you want...
 	// Note for JSON to marshal/unmarshal, the fields need to
 	// be public (start with a capital letter)
@@ -284,6 +290,27 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 //
 // The name of the file should NOT be revealed to the datastore!
 func (userdata *User) StoreFile(filename string, data []byte) {
+	fileID := uuid.New()
+	fileEncryptKey := randomBytes(16)
+	fileMacKey := randomBytes(16)
+	fileMetadata := FileMetadata{
+		FileID:     fileID,
+		EncryptKey: fileEncryptKey,
+		MACKey:     fileMacKey,
+	}
+	userdata.OwnedFiles[filename] = fileMetadata
+
+	ciphertext := CFBEncrypt(fileEncryptKey, data)
+	fileJSON, err := json.Marshal(EMAC{
+		Ciphertext: ciphertext,
+		Mac:        HMAC(fileMacKey, ciphertext),
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	path := "file/" + fileID.String()
+	userlib.DatastoreSet(path, fileJSON)
 }
 
 // This adds on to an existing file.
