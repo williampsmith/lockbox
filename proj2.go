@@ -273,7 +273,7 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 
 	// check MAC of encrypted data to ensure no tampering
 	if !VerifyHMAC(macKey, emac.Ciphertext, emac.Mac) {
-		return nil, errors.New("Error. User Data has been tampered with.")
+		return nil, errors.New("User Data has been tampered with.")
 	}
 
 	var userdata User
@@ -348,7 +348,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 
 	// check MAC of encrypted data to ensure no tampering
 	if !VerifyHMAC(macKey, emac.Ciphertext, emac.Mac) {
-		return nil, errors.New("Error. File Data has been tampered with.")
+		return nil, errors.New("File Data has been tampered with.")
 	}
 
 	fileData := CFBDecrypt(encryptKey, emac.Ciphertext)
