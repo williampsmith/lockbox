@@ -286,9 +286,30 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	return &userdata, err
 }
 
+// TODO: remove
 type Revision struct {
 	Length int
 	Data   []byte
+}
+
+type RevisionMetadata struct {
+	FileSize      uint
+	NumRevisions  uint
+	RevisionSizes []uint
+}
+
+// Unencrypted metadata for file r, located at meta/r, where r is random
+type SharedMetadata struct {
+	Metadata    []byte // NOTE: Marshaled RevisionMetadata
+	MetadataMAC []byte
+}
+
+// helper function to append byte array to byte array
+func extend(a []byte, newData []byte) []byte {
+	for _, b := range newData {
+		a = append(a, b)
+	}
+	return a
 }
 
 // This stores a file in the datastore.
@@ -306,29 +327,47 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	userdata.OwnedFiles[filename] = fileMetadata
 
-	// initialize data revision history
-	dataLen := len(data)
-	var revisionHistory []Revision
-	revisionHistory = append(revisionHistory, Revision{
-		Length: dataLen,
-		Data:   data,
-	})
-	dataJSON, err := json.Marshal(revisionHistory)
+	// initialize data revision metadata
+	dataLen := uint(len(data))
+	revisionSizes := make([]uint, 1)
+	revisionSizes = append(revisionSizes, dataLen)
+
+	revisionMetadata := RevisionMetadata{
+		FileSize:      dataLen,
+		NumRevisions:  1,
+		RevisionSizes: revisionSizes,
+	}
+
+	revisionJSON, err := json.Marshal(revisionMetadata)
+	if err != nil {
+		panic(err)
+	}
+
+	sharedMetadata := SharedMetadata{
+		Metadata:    revisionJSON,
+		MetadataMAC: HMAC(fileMacKey, revisionJSON),
+	}
+
+	sharedMetadataJSON, err := json.Marshal(sharedMetadata)
+	if err != nil {
+		panic(err)
+	}
+	metaDataPath := "meta/" + fileID.String()
+	userlib.DatastoreSet(metaDataPath, sharedMetadataJSON)
+
+	dataJSON, err := json.Marshal(data)
 	if err != nil {
 		panic(err)
 	}
 
 	ciphertext := CFBEncrypt(fileEncryptKey, dataJSON)
-	fileJSON, err := json.Marshal(EMAC{
-		Ciphertext: ciphertext,
-		Mac:        HMAC(fileMacKey, ciphertext),
-	})
-	if err != nil {
-		panic(err)
-	}
+	fileMAC := HMAC(fileMacKey, ciphertext)
+	fileData := make([]byte, 0, dataLen*2+64) // enough to hold MAC if file size is small
+	fileData = extend(fileData, fileMAC)
+	fileData = extend(fileData, ciphertext)
 
-	path := "file/" + fileID.String()
-	userlib.DatastoreSet(path, fileJSON)
+	filePath := "file/" + fileID.String()
+	userlib.DatastoreSet(filePath, fileData)
 }
 
 // This adds on to an existing file.
@@ -347,50 +386,53 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok {
-		return nil, errors.New("File not found! Please check filename.")
+		return nil, errors.New("File not found, please check filename")
 	}
 
-	encryptKey := fileMetaData.EncryptKey
-	macKey := fileMetaData.MACKey
-	path := "file/" + fileMetaData.FileID.String()
-	dataJSON, ok := userlib.DatastoreGet(path)
+	filePath := "file/" + fileMetaData.FileID.String()
+	metadataPath := "meta/" + fileMetaData.FileID.String()
+
+	// fetch and verify file metadata
+	sharedMetadataJSON, ok := userlib.DatastoreGet(metadataPath)
 	if !ok {
-		return nil, errors.New("File not in datastore. May have been moved!")
+		return nil, errors.New("Metadata not in datastore, may have been moved")
 	}
-
-	var emac EMAC
-	err = json.Unmarshal(dataJSON, &emac)
+	var sharedMetadata SharedMetadata
+	err = json.Unmarshal(sharedMetadataJSON, &sharedMetadata)
+	if err != nil {
+		panic(err)
+	}
+	if !VerifyHMAC(
+		fileMetaData.MACKey,
+		sharedMetadata.Metadata,
+		sharedMetadata.MetadataMAC,
+	) {
+		return nil, errors.New("File metadata has been tampered with")
+	}
+	var revisionMetadata RevisionMetadata
+	err = json.Unmarshal(sharedMetadata.Metadata, &revisionMetadata)
 	if err != nil {
 		panic(err)
 	}
 
-	// check MAC of encrypted data to ensure no tampering
-	if !VerifyHMAC(macKey, emac.Ciphertext, emac.Mac) {
-		return nil, errors.New("File Data has been tampered with.")
+	// verify, decrypt, and copy file data
+	file, ok := userlib.DatastoreGet(filePath)
+	if !ok {
+		return nil, errors.New("File not in datastore, may have been moved")
 	}
 
-	// recover revision history
-	revisionJSON := CFBDecrypt(encryptKey, emac.Ciphertext)
-	var revisionHistory []Revision
-	err = json.Unmarshal(revisionJSON, &revisionHistory)
-	if err != nil {
-		panic(err)
-	}
-
-	// calculate total data size
-	size := 0
-	for _, revision := range revisionHistory {
-		size += revision.Length
-	}
-
-	// generate, aggregate, and return data file
-	i := 0
-	var fileData = make([]byte, size)
-	for _, revision := range revisionHistory {
-		for j := 0; j < revision.Length; j++ {
-			fileData[i+j] = revision.Data[j]
+	fileData := make([]byte, 0)
+	j := 0
+	// TODO: are these int conversion safe?
+	for i := 0; i < int(revisionMetadata.NumRevisions); i++ {
+		mac, ciphertext := file[j:j+16], file[j+16:j+16+int(revisionMetadata.RevisionSizes[i])]
+		// check MAC of encrypted data to ensure no tampering
+		if !VerifyHMAC(fileMetaData.MACKey, ciphertext, mac) {
+			return nil, errors.New("File Data has been tampered with.")
 		}
-		i += revision.Length
+		plaintext := CFBDecrypt(fileMetaData.EncryptKey, ciphertext)
+		fileData = extend(fileData, plaintext)
+		j += 16 + int(revisionMetadata.RevisionSizes[i])
 	}
 
 	return fileData, err
