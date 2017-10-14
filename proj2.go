@@ -286,9 +286,18 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	return &userdata, err
 }
 
+const INITIAL_REVISION_LEN = 20
+
+type Revision struct {
+	Length int
+	Data   []byte
+}
+
 // This stores a file in the datastore.
 //
 // The name of the file should NOT be revealed to the datastore!
+// TODO: differentiate between owner and user somehow
+// This will determine where the file metadata is stored in user struct
 func (userdata *User) StoreFile(filename string, data []byte) {
 	fileID := uuid.New() // random identifier
 	fileEncryptKey := randomBytes(16)
@@ -300,7 +309,20 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	userdata.OwnedFiles[filename] = fileMetadata
 
-	ciphertext := CFBEncrypt(fileEncryptKey, data)
+	// initialize data revision history
+	dataLen := len(data)
+	revisionHistory := make([]Revision, INITIAL_REVISION_LEN)
+	initialRevision := Revision{
+		Length: dataLen,
+		Data:   data,
+	}
+	revisionHistory[0] = initialRevision
+	datatJSON, err := json.Marshal(revisionHistory)
+	if err != nil {
+		panic(err)
+	}
+
+	ciphertext := CFBEncrypt(fileEncryptKey, datatJSON)
 	fileJSON, err := json.Marshal(EMAC{
 		Ciphertext: ciphertext,
 		Mac:        HMAC(fileMacKey, ciphertext),
@@ -351,7 +373,30 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		return nil, errors.New("File Data has been tampered with.")
 	}
 
-	fileData := CFBDecrypt(encryptKey, emac.Ciphertext)
+	// recover revision history
+	revisionJSON := CFBDecrypt(encryptKey, emac.Ciphertext)
+	var revisionHistory []Revision
+	err = json.Unmarshal(revisionJSON, &revisionHistory)
+	if err != nil {
+		panic(err)
+	}
+
+	// calculate total data size
+	size := 0
+	for _, revision := range revisionHistory {
+		size += revision.Length
+	}
+
+	// generate, aggregate, and return data file
+	i := 0
+	var fileData = make([]byte, size)
+	for _, revision := range revisionHistory {
+		for j := 0; j < revision.Length; j++ {
+			fileData[i+j] = revision.Data[j]
+		}
+		i += revision.Length
+	}
+
 	return fileData, err
 }
 
