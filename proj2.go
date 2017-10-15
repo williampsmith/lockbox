@@ -513,6 +513,8 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 // You may want to define what you actually want to pass as a
 // sharingRecord to serialized/deserialize in the data store.
 type sharingRecord struct {
+	privateFileMetadata []byte // Marshaled FileMetaData
+	Signature           []byte
 }
 
 // This creates a sharing record, which is a key pointing to something
@@ -528,7 +530,37 @@ type sharingRecord struct {
 
 func (userdata *User) ShareFile(filename string, recipient string) (
 	msgid string, err error) {
-	return
+	recipientKey, ok := userlib.KeystoreGet(recipient)
+	if !ok {
+		return "", errors.New("Recipient public key not found. Check recipient name.")
+	}
+
+	// retrieve private file metadata
+	sharedMetadata, err := json.Marshal(userdata.OwnedFiles[filename])
+	if err != nil {
+		panic(err)
+	}
+
+	// encrypt and sign
+	ciphertext, err := userlib.RSAEncrypt(&recipientKey, sharedMetadata, nil)
+	if err != nil {
+		panic(err)
+	}
+	rsaSignature, err := userlib.RSASign(&userdata.PrivateKey, ciphertext)
+	if err != nil {
+		panic(err)
+	}
+
+	sharedRecord := sharingRecord{
+		privateFileMetadata: ciphertext,
+		Signature:           rsaSignature,
+	}
+	message, err := json.Marshal(sharedRecord)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(message), err
 }
 
 // Note recipient's filename can be different from the sender's filename.
@@ -537,7 +569,37 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 // it is authentically from the sender.
 func (userdata *User) ReceiveFile(filename string, sender string,
 	msgid string) error {
-	return nil
+	sharedRecordJSON := []byte(msgid)
+
+	var sharedRecord sharingRecord
+	err := json.Unmarshal(sharedRecordJSON, sharedRecord)
+	if err != nil {
+		panic(err)
+	}
+
+	// verify message signature and decrypt
+	senderKey, ok := userlib.KeystoreGet(sender)
+	if !ok {
+		return errors.New("Sender public key not found. Check sender name.")
+	}
+	if userlib.RSAVerify(
+		&senderKey,
+		sharedRecord.privateFileMetadata,
+		sharedRecord.Signature,
+	) != nil {
+		return errors.New("Message verification failed.")
+	}
+
+	message, err := userlib.RSADecrypt(
+		&userdata.PrivateKey,
+		sharedRecord.privateFileMetadata,
+		nil,
+	)
+
+	var fileMetadata FileMetadata
+	json.Unmarshal(message, fileMetadata)
+	userdata.SharedFiles[filename] = fileMetadata
+	return err
 }
 
 // Removes access for all others.
