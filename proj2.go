@@ -559,6 +559,8 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	if err != nil {
 		panic(err)
 	}
+	debugMsg("ShareFie -- Shared Record: %s", sharedRecord)
+	debugMsg("ShareFie -- Shared Record JSON: %s", message)
 
 	return string(message), err
 }
@@ -577,8 +579,13 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		panic(err)
 	}
 
+	debugMsg("ReceiveFile -- Shared Record: %s", sharedRecord)
+	debugMsg("ReceiveFile -- Shared Record JSON: %s", sharedRecordJSON)
+
 	// verify message signature and decrypt
 	senderKey, ok := userlib.KeystoreGet(sender)
+	debugMsg("Sender: %s", sender)
+	debugMsg("Recipient: %s", userdata.Username)
 	if !ok {
 		return errors.New("Sender public key not found. Check sender name.")
 	}
@@ -587,6 +594,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		sharedRecord.privateFileMetadata,
 		sharedRecord.Signature,
 	) != nil {
+		debugMsg("File Metadata is: %s", string(sharedRecord.privateFileMetadata))
 		return errors.New("Message verification failed.")
 	}
 
