@@ -326,7 +326,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userdata.OwnedFiles[filename] = fileMetadata
 
 	// initialize data revision metadata
-	dataLen := uint(len(data))
+	ciphertext := CFBEncrypt(fileEncryptKey, data)
+	dataLen := uint(len(ciphertext))
 	var revisionSizes []uint
 	revisionSizes = append(revisionSizes, dataLen)
 
@@ -353,7 +354,6 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	metaDataPath := "meta/" + fileID.String()
 	userlib.DatastoreSet(metaDataPath, sharedMetadataJSON)
 
-	ciphertext := CFBEncrypt(fileEncryptKey, data)
 	debugMsg("StoreFile cipher is: %v", ciphertext)
 	fileMAC := HMAC(fileMacKey, ciphertext)
 	debugMsg("StoreFile MAC is: %v", fileMAC)
@@ -377,6 +377,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
+	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)
+
 	if !ok {
 		return errors.New("File not found, please check filename")
 	}
@@ -408,7 +410,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	}
 
 	// update metadata
-	dataLen := uint(len(data))
+	dataLen := uint(len(ciphertext))
 	revisionMetadata.FileSize += dataLen
 	revisionMetadata.NumRevisions++
 	revisionMetadata.RevisionSizes = append(
@@ -432,7 +434,6 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	if !ok {
 		return errors.New("File not in datastore, may have been moved")
 	}
-	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)
 	mac := HMAC(fileMetaData.MACKey, ciphertext)
 	file = extend(file, mac)
 	file = extend(file, ciphertext)
@@ -494,9 +495,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		offset := j + userlib.HashSize
 		mac := file[j:offset]
 
-		// cipherSize == len(IV) + len(dataChunk == revisionSize[i])
-		cipherSize := int(userlib.BlockSize) + int(revisionMetadata.RevisionSizes[i])
-		ciphertext := file[offset : offset+cipherSize]
+		ciphertext := file[offset : offset+int(revisionMetadata.RevisionSizes[i])]
 		debugMsg("LoadFile MAC is: %v", mac)
 		debugMsg("LoadFile cipher is: %v", ciphertext)
 		// check MAC of encrypted data to ensure no tampering
@@ -505,7 +504,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		}
 		plaintext := CFBDecrypt(fileMetaData.EncryptKey, ciphertext)
 		fileData = extend(fileData, plaintext)
-		j += userlib.HashSize + cipherSize
+		j += userlib.HashSize + int(revisionMetadata.RevisionSizes[i])
 	}
 
 	return fileData, err
