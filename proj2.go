@@ -177,6 +177,7 @@ type FileMetadata struct {
 // The structure definition for a user record
 type User struct {
 	Username    string
+	Password    string
 	PrivateKey  rsa.PrivateKey
 	PublicKey   rsa.PublicKey
 	OwnedFiles  map[string]FileMetadata
@@ -210,6 +211,7 @@ type EMAC struct {
 func InitUser(username string, password string) (userdataptr *User, err error) {
 	var userdata User
 	userdata.Username = username
+	userdata.Password = password
 	key, err := userlib.GenerateRSAKey()
 	if err != nil {
 		panic(err)
@@ -221,14 +223,24 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.PrivateKey = *key
 	userdata.PublicKey = key.PublicKey
 
+	userlib.KeystoreSet(username, userdata.PublicKey)
+	err = dataStoreUserData(userdata)
+	if err != nil {
+		panic(err)
+	}
+
+	return &userdata, err
+}
+
+func dataStoreUserData(userdata User) (err error) {
 	masterKey := userlib.PBKDF2Key(
-		[]byte(password),
-		Hash([]byte(username)),
+		[]byte(userdata.Password),
+		Hash([]byte(userdata.Username)),
 		userlib.AESKeySize*2,
 	)
 
 	macKey, encryptKey := masterKey[:userlib.AESKeySize], masterKey[userlib.AESKeySize:]
-	path := "logins/" + string(HMAC(macKey, []byte(username)))
+	path := "logins/" + string(HMAC(macKey, []byte(userdata.Username)))
 	userJSON, err := json.Marshal(userdata)
 	if err != nil {
 		panic(err)
@@ -244,9 +256,8 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 		panic(err)
 	}
 
-	userlib.KeystoreSet(username, userdata.PublicKey)
 	userlib.DatastoreSet(path, emacJSON)
-	return &userdata, err
+	return err
 }
 
 // This fetches the user information from the Datastore.  It should
@@ -367,6 +378,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	filePath := "file/" + fileID.String()
 	debugMsg("StoreFile filepath is: %v", filePath)
 	userlib.DatastoreSet(filePath, fileData)
+	err = dataStoreUserData(*userdata)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // This adds on to an existing file.
@@ -620,6 +635,10 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var fileMetadata FileMetadata
 	json.Unmarshal(message, &fileMetadata)
 	userdata.SharedFiles[filename] = fileMetadata
+	err = dataStoreUserData(*userdata)
+	if err != nil {
+		panic(err)
+	}
 	return err
 }
 

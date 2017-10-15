@@ -275,6 +275,34 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 		t.Error("File contents changed after revoke")
 	}
 
+	alice2, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to reload user Alice", err)
+		return
+	}
+	file, err = alice2.LoadFile("rhyme")
+	if err != nil {
+		t.Error("Failed LoadFile userdata contents did not persist:", err)
+		return
+	}
+	if !isEqualByteArrays(finalVerse, file) {
+		t.Error("File contents changed")
+	}
+
+	bo2, err := GetUser("bo", "babc123")
+	if err != nil {
+		t.Error("Failed to reload user Bo", err)
+		return
+	}
+	file, err = bo2.LoadFile("goo2")
+	if err != nil {
+		t.Error("Failed LoadFile userdata shared contents did not persist:", err)
+		return
+	}
+	if !isEqualByteArrays(finalVerse, file) {
+		t.Error("File contents changed")
+	}
+
 	userlib.DatastoreClear()
 }
 
