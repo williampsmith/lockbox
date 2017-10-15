@@ -223,7 +223,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.PrivateKey = *key
 	userdata.PublicKey = key.PublicKey
 
-	userlib.KeystoreSet(username, userdata.PublicKey)
+	userlib.KeystoreSet(userdata.Username, userdata.PublicKey)
 	err = dataStoreUserData(userdata)
 	if err != nil {
 		panic(err)

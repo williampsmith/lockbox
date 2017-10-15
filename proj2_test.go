@@ -2,10 +2,25 @@ package proj2
 
 import "testing"
 import "github.com/nweaver/cs161-p2/userlib"
+import "errors"
 
 // You can actually import other stuff if you want IN YOUR TEST
 // HARNESS ONLY.  Note that this is NOT considered part of your
 // solution, but is how you make sure your solution is correct.
+
+func corruptData(path string) (err error) {
+	data, ok := userlib.DatastoreGet(path)
+	if !ok {
+		return errors.New("Failed to corrupt data. Could not get data from datastore")
+	}
+	if len(data) <= 0 {
+		return errors.New("Failed to corrupt data. Data is empty")
+	}
+	bite := data[2]
+	data[2] = byte(int(bite) - 1)
+	userlib.DatastoreSet(path, data)
+	return err
+}
 
 func TestInit(t *testing.T) {
 	t.Log("Initialization test")
@@ -20,20 +35,61 @@ func TestInit(t *testing.T) {
 	}
 	// t.Log() only produces output if you run with "go test -v"
 	t.Log("Got user", u)
-	// You probably want many more tests here.
+
+	if u.Username == "" {
+		t.Error("Username not initialized")
+	} else if u.Password == "" {
+		t.Error("Password not initialized")
+	} else if u.OwnedFiles == nil {
+		t.Error("OwnedFiles not initialized")
+	} else if u.SharedFiles == nil {
+		t.Error("SharedFiles not initialized")
+	}
 }
 
 func TestStorage(t *testing.T) {
-	// And some more tests, because
+	fillDataStore(t)
+
 	v, err := GetUser("alice", "fubar")
 	if err != nil {
 		t.Error("Failed to reload user", err)
 		return
 	}
 	t.Log("Loaded user", v)
+
+	v, err = GetUser("alice", "barfu")
+	if err == nil {
+		t.Error("Invalid login credentials passed when it should have failed", err)
+		return
+	}
+
+	v, err = GetUser("bob", "fubar")
+	if err == nil {
+		t.Error("Invalid login credentials passed when it should have failed", err)
+		return
+	}
+
+	// test corrupted data
+	masterKey := userlib.PBKDF2Key(
+		[]byte("fubar"),
+		Hash([]byte("alice")),
+		userlib.AESKeySize*2,
+	)
+
+	macKey := masterKey[:userlib.AESKeySize]
+	path := "logins/" + string(HMAC(macKey, []byte("alice")))
+	corruptData(path)
+
+	v, err = GetUser("alice", "fubar")
+	if err == nil {
+		t.Error("Corrupted userdata passed when it should have failed:", err)
+		return
+	}
+	userlib.DatastoreClear()
 }
 
 func TestLenCap(t *testing.T) {
+	fillDataStore(t)
 	user, err := GetUser("alice", "fubar")
 	if err != nil {
 		t.Error("Failed GetUser:", err)
@@ -66,6 +122,7 @@ func TestLenCap(t *testing.T) {
 		t.Error("Failed LoadFile expecting an error, but got no error")
 		return
 	}
+	userlib.DatastoreClear()
 }
 
 func TestUserCollisions(t *testing.T) {
