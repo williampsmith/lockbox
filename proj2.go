@@ -404,13 +404,9 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 // metadata you need.
 
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
-	fileMetaData, ok := userdata.OwnedFiles[filename]
-	if !ok {
-		fileMetaData, ok = userdata.SharedFiles[filename]
-		if !ok {
-			debugMsg("AppendFile -- Filename: %s", filename)
-			return errors.New("File not found, please check filename")
-		}
+	fileMetaData, err := userdata.getPrivateMetadata(filename)
+	if err != nil {
+		return err
 	}
 
 	filePath := "file/" + fileMetaData.FileID.String()
@@ -481,14 +477,13 @@ func (userdata *User) loadMetadata(filename string) (metadata *RevisionMetadata,
 	return &revisionMetadata, err
 }
 
-// This loads a file from the Datastore.
-//
-// It should give an error if the file is corrupted in any way.
-func (userdata *User) LoadFile(filename string) (data []byte, err error) {
-	userdata, err = GetUser(userdata.Username, userdata.Password)
+func (userdata *User) getPrivateMetadata(filename string) (
+	metadata *FileMetadata, err error) {
+	pointer, err := GetUser(userdata.Username, userdata.Password)
 	if err != nil {
 		return nil, err
 	}
+	*userdata = *pointer
 
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok { // could be shared instead of owned
@@ -496,6 +491,17 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		if !ok {
 			return nil, errors.New("File not found, please check filename")
 		}
+	}
+	return &fileMetaData, err
+}
+
+// This loads a file from the Datastore.
+//
+// It should give an error if the file is corrupted in any way.
+func (userdata *User) LoadFile(filename string) (data []byte, err error) {
+	fileMetaData, err := userdata.getPrivateMetadata(filename)
+	if err != nil {
+		return nil, err
 	}
 
 	filePath := "file/" + fileMetaData.FileID.String()
@@ -554,18 +560,13 @@ type SharingRecord struct {
 
 func (userdata *User) ShareFile(filename string, recipient string) (
 	msgid string, err error) {
+	fileMetaData, err := userdata.getPrivateMetadata(filename)
+	if err != nil {
+		return "", err
+	}
 	recipientKey, ok := userlib.KeystoreGet(recipient)
 	if !ok {
 		return "", errors.New("Recipient public key not found. Check recipient name.")
-	}
-
-	// retrieve private file metadata
-	fileMetaData, ok := userdata.OwnedFiles[filename]
-	if !ok { // could be shared instead of owned
-		fileMetaData, ok = userdata.SharedFiles[filename]
-		if !ok {
-			return "", errors.New("File not found, please check filename")
-		}
 	}
 
 	fileMetaDataJSON, err := json.Marshal(fileMetaData)
@@ -649,6 +650,13 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 // Removes access for all others.
 func (userdata *User) RevokeFile(filename string) (err error) {
+	// get most current version of userdata
+	pointer, err := GetUser(userdata.Username, userdata.Password)
+	if err != nil {
+		return err
+	}
+	*userdata = *pointer
+
 	// Check if file belongs to user
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok { // could be shared instead of owned

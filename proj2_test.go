@@ -127,6 +127,11 @@ func TestSameUser(t *testing.T) {
 	if string(todo) != "write tests" {
 		t.Error("Same user and password could not access file: ", err)
 	}
+
+	_, ok := also_alice.OwnedFiles["todo"]
+	if !ok {
+		t.Error("Failed to load metadata. OwnedFiles dictionaries not consistent")
+	}
 }
 
 func TestSharedAppendAndRevoke(t *testing.T) {
