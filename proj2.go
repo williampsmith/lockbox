@@ -321,6 +321,33 @@ func extend(a []byte, newData []byte) []byte {
 	return a
 }
 
+func (userdata *User) StoreMetadata(filename string, metadata *RevisionMetadata) {
+	fileMetadata, ok := userdata.OwnedFiles[filename]
+	if !ok { // could be shared instead of owned
+		fileMetadata, ok = userdata.SharedFiles[filename]
+		if !ok {
+			panic(errors.New("Metadata not found, please check filename"))
+		}
+	}
+
+	revisionJSON, err := json.Marshal(metadata)
+	if err != nil {
+		panic(err)
+	}
+
+	sharedMetadata := SharedMetadata{
+		Metadata:    revisionJSON,
+		MetadataMAC: HMAC(fileMetadata.MACKey, revisionJSON),
+	}
+
+	sharedMetadataJSON, err := json.Marshal(sharedMetadata)
+	if err != nil {
+		panic(err)
+	}
+	metaDataPath := "meta/" + fileMetadata.FileID.String()
+	userlib.DatastoreSet(metaDataPath, sharedMetadataJSON)
+}
+
 // This stores a file in the datastore.
 //
 // The name of the file should NOT be revealed to the datastore!
@@ -336,9 +363,10 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 	userdata.OwnedFiles[filename] = fileMetadata
 
-	// initialize data revision metadata
 	ciphertext := CFBEncrypt(fileEncryptKey, data)
 	dataLen := uint(len(ciphertext))
+
+	// initialize data revision metadata
 	var revisionSizes []uint
 	revisionSizes = append(revisionSizes, dataLen)
 
@@ -348,22 +376,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		RevisionSizes: revisionSizes,
 	}
 	debugMsg("StoreFile revisionMetadata is: %v", revisionMetadata)
-	revisionJSON, err := json.Marshal(revisionMetadata)
-	if err != nil {
-		panic(err)
-	}
-
-	sharedMetadata := SharedMetadata{
-		Metadata:    revisionJSON,
-		MetadataMAC: HMAC(fileMacKey, revisionJSON),
-	}
-
-	sharedMetadataJSON, err := json.Marshal(sharedMetadata)
-	if err != nil {
-		panic(err)
-	}
-	metaDataPath := "meta/" + fileID.String()
-	userlib.DatastoreSet(metaDataPath, sharedMetadataJSON)
+	userdata.StoreMetadata(filename, &revisionMetadata)
 
 	debugMsg("StoreFile cipher is: %v", ciphertext)
 	fileMAC := HMAC(fileMacKey, ciphertext)
@@ -378,7 +391,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	filePath := "file/" + fileID.String()
 	debugMsg("StoreFile filepath is: %v", filePath)
 	userlib.DatastoreSet(filePath, fileData)
-	err = dataStoreUserData(*userdata)
+	err := dataStoreUserData(*userdata)
 	if err != nil {
 		panic(err)
 	}
@@ -461,10 +474,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	return err
 }
 
-// This loads a file from the Datastore.
-//
-// It should give an error if the file is corrupted in any way.
-func (userdata *User) LoadFile(filename string) (data []byte, err error) {
+func (userdata *User) LoadMetadata(filename string) (metadata *RevisionMetadata, err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok { // could be shared instead of owned
 		fileMetaData, ok = userdata.SharedFiles[filename]
@@ -473,11 +483,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		}
 	}
 
-	filePath := "file/" + fileMetaData.FileID.String()
 	metadataPath := "meta/" + fileMetaData.FileID.String()
-
-	debugMsg("LoadFile filepath is: %v", filePath)
-
 	// fetch and verify file metadata
 	sharedMetadataJSON, ok := userlib.DatastoreGet(metadataPath)
 	if !ok {
@@ -500,7 +506,31 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	if err != nil {
 		panic(err)
 	}
+
 	debugMsg("LoadFile revisionMetadata is: %v", revisionMetadata)
+	return &revisionMetadata, err
+}
+
+// This loads a file from the Datastore.
+//
+// It should give an error if the file is corrupted in any way.
+func (userdata *User) LoadFile(filename string) (data []byte, err error) {
+	fileMetaData, ok := userdata.OwnedFiles[filename]
+	if !ok { // could be shared instead of owned
+		fileMetaData, ok = userdata.SharedFiles[filename]
+		if !ok {
+			return nil, errors.New("File not found, please check filename")
+		}
+	}
+
+	filePath := "file/" + fileMetaData.FileID.String()
+	debugMsg("LoadFile filepath is: %v", filePath)
+
+	revisionMetadata, err := userdata.LoadMetadata(filename)
+	if err != nil {
+		return nil, err
+	}
+
 	// verify, decrypt, and copy file data
 	file, ok := userlib.DatastoreGet(filePath)
 	if !ok {
