@@ -597,7 +597,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	)
 
 	var fileMetadata FileMetadata
-	json.Unmarshal(message, fileMetadata)
+	json.Unmarshal(message, &fileMetadata)
 	userdata.SharedFiles[filename] = fileMetadata
 	return err
 }
