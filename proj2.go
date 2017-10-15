@@ -493,7 +493,10 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	for i := 0; i < int(revisionMetadata.NumRevisions); i++ {
 		offset := j + userlib.HashSize
 		mac := file[j:offset]
-		ciphertext := file[offset : offset+int(revisionMetadata.RevisionSizes[i])]
+
+		// cipherSize == len(IV) + len(dataChunk == revisionSize[i])
+		cipherSize := int(userlib.BlockSize) + int(revisionMetadata.RevisionSizes[i])
+		ciphertext := file[offset : offset+cipherSize]
 		debugMsg("LoadFile MAC is: %v", mac)
 		debugMsg("LoadFile cipher is: %v", ciphertext)
 		// check MAC of encrypted data to ensure no tampering
@@ -502,7 +505,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		}
 		plaintext := CFBDecrypt(fileMetaData.EncryptKey, ciphertext)
 		fileData = extend(fileData, plaintext)
-		j += userlib.HashSize + int(revisionMetadata.RevisionSizes[i])
+		j += userlib.HashSize + cipherSize
 	}
 
 	return fileData, err
