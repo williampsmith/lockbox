@@ -354,9 +354,9 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userlib.DatastoreSet(metaDataPath, sharedMetadataJSON)
 
 	ciphertext := CFBEncrypt(fileEncryptKey, data)
+	debugMsg("StoreFile cipher is: %v", ciphertext)
 	fileMAC := HMAC(fileMacKey, ciphertext)
 	debugMsg("StoreFile MAC is: %v", fileMAC)
-	debugMsg("StoreFile cipher is: %v", ciphertext)
 	// ciphertext size == len(IV) + dataLen; len(IV) == userlib.Blocksize
 	// MAC size == 32 bytes
 	// fileData := make([]byte, 0, userlib.HashSize+len(ciphertext)) // enough to hold MAC if file size is small

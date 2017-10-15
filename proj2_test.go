@@ -38,7 +38,7 @@ func TestLenCap(t *testing.T){
 		t.Error("Failed GetUser:", err)
 		return
 	}
-	t.Log("Loaded user:", user)
+	// t.Log("Loaded user:", user)
 
 	array := make([]byte, 10, 20)
 	t.Log("Original file len:", len(array))
