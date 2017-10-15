@@ -1,6 +1,6 @@
 # lockbox
 
-## A cloud based file storage system, implemented on top of a secure cryptographic protocol for trustless server hosting.
+## A cloud based file storage client, implemented on top of a secure cryptographic protocol for trustless server hosting.
 
 ### Part 1:
 
@@ -99,6 +99,3 @@ r4 = HMAC_kn2(new filename)
 
 Lets say there’s also a user 3, but original user decides to revoke access to user 3.
 Original user changes ka’, ke’ and needs to re-encrypt location r2 and also update location r3.
-
-
-
