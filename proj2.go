@@ -572,7 +572,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	sharedRecordJSON := []byte(msgid)
 
 	var sharedRecord sharingRecord
-	err := json.Unmarshal(sharedRecordJSON, sharedRecord)
+	err := json.Unmarshal(sharedRecordJSON, &sharedRecord)
 	if err != nil {
 		panic(err)
 	}
@@ -608,7 +608,7 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	if err != nil {
 		return err
 	}
-	
+
 	// StoreFile generates new location and new keys
 	userdata.StoreFile(filename, fileData)
 	return err
