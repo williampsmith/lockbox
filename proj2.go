@@ -413,55 +413,25 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 		}
 	}
 
-	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)
-
 	filePath := "file/" + fileMetaData.FileID.String()
-	metadataPath := "meta/" + fileMetaData.FileID.String()
-
-	// fetch and verify file metadata
-	sharedMetadataJSON, ok := userlib.DatastoreGet(metadataPath)
-	if !ok {
-		return errors.New("Metadata not in datastore, may have been moved")
-	}
-	var sharedMetadata SharedMetadata
-	err = json.Unmarshal(sharedMetadataJSON, &sharedMetadata)
-	if err != nil {
-		panic(err)
-	}
-	if !VerifyHMAC(
-		fileMetaData.MACKey,
-		sharedMetadata.Metadata,
-		sharedMetadata.MetadataMAC,
-	) {
-		return errors.New("File metadata has been tampered with")
-	}
-	var revisionMetadata RevisionMetadata
-	err = json.Unmarshal(sharedMetadata.Metadata, &revisionMetadata)
-	if err != nil {
-		panic(err)
-	}
+	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)
+	dataLen := uint(len(ciphertext))
 
 	// update metadata
-	dataLen := uint(len(ciphertext))
+	revisionMetadata, err := userdata.LoadMetadata(filename)
+	if err != nil {
+		return err
+	}
+
 	revisionMetadata.FileSize += dataLen
 	revisionMetadata.NumRevisions++
 	revisionMetadata.RevisionSizes = append(
 		revisionMetadata.RevisionSizes,
 		dataLen,
 	)
-	newRevisionMetadataJSON, err := json.Marshal(revisionMetadata)
-	if err != nil {
-		panic(err)
-	}
-	sharedMetadata.Metadata = newRevisionMetadataJSON
-	sharedMetadata.MetadataMAC = HMAC(fileMetaData.MACKey, newRevisionMetadataJSON)
-	newSharedMetadataJSON, err := json.Marshal(sharedMetadata)
-	if err != nil {
-		panic(err)
-	}
-	userlib.DatastoreSet(metadataPath, newSharedMetadataJSON)
+	userdata.StoreMetadata(filename, revisionMetadata)
 
-	// append to file
+	// append to file and upload
 	file, ok := userlib.DatastoreGet(filePath)
 	if !ok {
 		return errors.New("File not in datastore, may have been moved")
