@@ -132,7 +132,7 @@ func CFBEncrypt(key []byte, data []byte) []byte {
 	if _, err := io.ReadFull(userlib.Reader, iv); err != nil {
 		panic(err)
 	}
-
+	debugMsg("CFBEncrypt IV is: %v", iv)
 	cipher := userlib.CFBEncrypter(key, iv)
 	cipher.XORKeyStream(ciphertext[userlib.BlockSize:], data)
 
@@ -355,6 +355,8 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 
 	ciphertext := CFBEncrypt(fileEncryptKey, data)
 	fileMAC := HMAC(fileMacKey, ciphertext)
+	debugMsg("StoreFile MAC is: %v", fileMAC)
+	debugMsg("StoreFile cipher is: %v", ciphertext)
 	// ciphertext size == len(IV) + dataLen; len(IV) == userlib.Blocksize
 	// MAC size == 32 bytes
 	// fileData := make([]byte, 0, userlib.HashSize+len(ciphertext)) // enough to hold MAC if file size is small
@@ -363,6 +365,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	fileData = extend(fileData, ciphertext)
 
 	filePath := "file/" + fileID.String()
+	debugMsg("StoreFile filepath is: %v", filePath)
 	userlib.DatastoreSet(filePath, fileData)
 }
 
@@ -453,6 +456,8 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	filePath := "file/" + fileMetaData.FileID.String()
 	metadataPath := "meta/" + fileMetaData.FileID.String()
 
+	debugMsg("LoadFile filepath is: %v", filePath)
+
 	// fetch and verify file metadata
 	sharedMetadataJSON, ok := userlib.DatastoreGet(metadataPath)
 	if !ok {
@@ -488,7 +493,9 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	for i := 0; i < int(revisionMetadata.NumRevisions); i++ {
 		offset := j + userlib.HashSize
 		mac := file[j:offset]
+		debugMsg("LoadFile MAC is: %v", mac)
 		ciphertext := file[offset : offset+int(revisionMetadata.RevisionSizes[i])]
+		debugMsg("LoadFile cipher is: %v", ciphertext)
 		// check MAC of encrypted data to ensure no tampering
 		if !VerifyHMAC(fileMetaData.MACKey, ciphertext, mac) {
 			return nil, errors.New("File Data has been tampered with.")

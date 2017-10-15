@@ -7,7 +7,7 @@ import "testing"
 
 func TestInit(t *testing.T){
 	t.Log("Initialization test")
-	DebugPrint = true
+	DebugPrint = false
 	someUsefulThings()
 
 	DebugPrint = false
@@ -30,4 +30,29 @@ func TestStorage(t *testing.T){
 		return
 	}
 	t.Log("Loaded user", v)
+}
+
+func TestLenCap(t *testing.T){
+	user, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed GetUser:", err)
+		return
+	}
+	t.Log("Loaded user:", user)
+
+	array := make([]byte, 10, 20)
+	t.Log("Original file len:", len(array))
+	t.Log("Original file cap:", cap(array))
+
+	DebugPrint = true
+	user.StoreFile("LenCap", array)
+
+	var file []byte
+	file, err = user.LoadFile("LenCap")
+	if err != nil {
+		t.Error("Failed LoadFile:", err)
+		return
+	}
+	t.Log("Original file len:", len(file))
+	t.Log("Original file cap:", cap(file))
 }
