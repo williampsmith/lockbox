@@ -107,6 +107,28 @@ func TestUserCollisions(t *testing.T) {
 	}
 }
 
+func TestSameUser(t *testing.T) {
+	DebugPrint = false
+	fillDataStore(t)
+	// Having previously created a user "alice" with password "fubar"...
+	alice, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to reload user Alice", err)
+		return
+	}
+	also_alice, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed to reload second user Alice", err)
+		return
+	}
+
+	alice.StoreFile("todo", []byte("write tests"))
+	todo, err := also_alice.LoadFile("todo")
+	if string(todo) != "write tests" {
+		t.Error("Same user and password could not access file: ", err)
+	}
+}
+
 func TestSharedAppendAndRevoke(t *testing.T) {
 	DebugPrint = false
 	fillDataStore(t)
@@ -198,7 +220,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 	// ==================================================
 	finalVerse := []byte("Simple Simon met a pie-man going to the fair. The end.")
 	// ==================================================
-	
+
 	file, err = alice.LoadFile("rhyme")
 	if err != nil {
 		t.Error("Failed LoadFile:", err)

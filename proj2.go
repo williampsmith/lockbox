@@ -485,6 +485,11 @@ func (userdata *User) LoadMetadata(filename string) (metadata *RevisionMetadata,
 //
 // It should give an error if the file is corrupted in any way.
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
+	userdata, err = GetUser(userdata.Username, userdata.Password)
+	if err != nil {
+		return nil, err
+	}
+
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok { // could be shared instead of owned
 		fileMetaData, ok = userdata.SharedFiles[filename]
