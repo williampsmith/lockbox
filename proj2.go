@@ -335,7 +335,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		NumRevisions:  1,
 		RevisionSizes: revisionSizes,
 	}
-
+	debugMsg("StoreFile revisionMetadata is: %v", revisionMetadata)
 	revisionJSON, err := json.Marshal(revisionMetadata)
 	if err != nil {
 		panic(err)
@@ -480,7 +480,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	if err != nil {
 		panic(err)
 	}
-
+	debugMsg("LoadFile revisionMetadata is: %v", revisionMetadata)
 	// verify, decrypt, and copy file data
 	file, ok := userlib.DatastoreGet(filePath)
 	if !ok {
