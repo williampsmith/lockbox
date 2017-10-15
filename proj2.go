@@ -493,8 +493,8 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	for i := 0; i < int(revisionMetadata.NumRevisions); i++ {
 		offset := j + userlib.HashSize
 		mac := file[j:offset]
-		debugMsg("LoadFile MAC is: %v", mac)
 		ciphertext := file[offset : offset+int(revisionMetadata.RevisionSizes[i])]
+		debugMsg("LoadFile MAC is: %v", mac)
 		debugMsg("LoadFile cipher is: %v", ciphertext)
 		// check MAC of encrypted data to ensure no tampering
 		if !VerifyHMAC(fileMetaData.MACKey, ciphertext, mac) {
