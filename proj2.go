@@ -628,7 +628,7 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	// Check if file belongs to user
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok { // could be shared instead of owned
-		return errors.New("Revoke File not found or you are not the original owner")
+		return errors.New("RevokeFile - File not found or you are not the original owner")
 	}
 
 	originalFileData, err := userdata.LoadFile(filename)
@@ -689,6 +689,7 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	userlib.DatastoreSet(oldFilePath, randomData)
 	// Done: Revoke access by to everyone by storing random contents =====================
 
+	userlib.DatastoreDelete(oldMetadataPath)
 	userlib.DatastoreDelete(oldFilePath)
 
 	// Copy file to new location. StoreFile generates new location and new keys

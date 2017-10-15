@@ -107,15 +107,20 @@ func TestUserCollisions(t *testing.T) {
 	}
 }
 
-func TestSharedAppend(t *testing.T) {
+func TestSharedAppendAndRevoke(t *testing.T) {
 	DebugPrint = false
 	fillDataStore(t)
 	alice, err := GetUser("alice", "fubar")
 	if err != nil {
-		t.Error("Failed to reload user alice", err)
+		t.Error("Failed to reload user Alice", err)
 		return
 	}
 	bob, err := GetUser("bob", "abc123")
+	if err != nil {
+		t.Error("Failed to reload user Bob", err)
+		return
+	}
+	bo, err := GetUser("bo", "babc123")
 	if err != nil {
 		t.Error("Failed to reload user bob", err)
 		return
@@ -138,7 +143,7 @@ func TestSharedAppend(t *testing.T) {
 	verse2 := []byte("met a pie-man ")
 	err = alice.AppendFile("rhyme", verse2)
 	if err != nil {
-		t.Error("Failed alice AppendFile:", err)
+		t.Error("Failed Alice AppendFile:", err)
 		return
 	}
 
@@ -165,14 +170,35 @@ func TestSharedAppend(t *testing.T) {
 		return
 	}
 
-	verse3 := []byte("going to the fair.")
-	err = bob.AppendFile("flow", verse3)
+	msgid2, err := bob.ShareFile("flow", "bo")
 	if err != nil {
-		t.Error("Failed bob AppendFile:", err)
+		t.Error("Failed ShareFile:", err)
+		return
+	}
+	err = bo.ReceiveFile("goo", "bob", msgid2)
+	if err != nil {
+		t.Error("Failed ReceiveFile:", err)
 		return
 	}
 
-	finalVerse := []byte("Simple Simon met a pie-man going to the fair.")
+	verse3 := []byte("going to the fair.")
+	err = bob.AppendFile("flow", verse3)
+	if err != nil {
+		t.Error("Failed Bob AppendFile:", err)
+		return
+	}
+
+	verse4 := []byte(" The end.")
+	err = alice.AppendFile("rhyme", verse4)
+	if err != nil {
+		t.Error("Failed Alice AppendFile:", err)
+		return
+	}
+
+	// ==================================================
+	finalVerse := []byte("Simple Simon met a pie-man going to the fair. The end.")
+	// ==================================================
+	
 	file, err = alice.LoadFile("rhyme")
 	if err != nil {
 		t.Error("Failed LoadFile:", err)
@@ -181,6 +207,72 @@ func TestSharedAppend(t *testing.T) {
 
 	if !isEqualByteArrays(finalVerse, file) {
 		t.Error("Shared Append failure. Edits by Bob not reflected in Alice's file.")
+	}
+
+	file, err = bo.LoadFile("goo")
+	if err != nil {
+		t.Error("Failed LoadFile:", err)
+		return
+	}
+
+	if !isEqualByteArrays(finalVerse, file) {
+		t.Error("Shared Append failure. Edits by Bob not reflected in Bo's file.")
+	}
+
+	err = bo.RevokeFile("goo")
+	if err == nil {
+		t.Error("Expected not original owner error, but got no error")
+	}
+
+	err = bob.RevokeFile("flow")
+	if err == nil {
+		t.Error("Expected not original owner error, but got no error")
+	}
+
+	err = alice.RevokeFile("rhyme")
+	if err != nil {
+		t.Error("Alice revoke file failed: ", err)
+	}
+
+	file, err = alice.LoadFile("rhyme")
+	if err != nil {
+		t.Error("Failed LoadFile:", err)
+		return
+	}
+	if !isEqualByteArrays(finalVerse, file) {
+		t.Error("File contents changed after revoke")
+	}
+
+	file, err = bob.LoadFile("flow")
+	if err == nil {
+		t.Error("Bob Expected load file failure")
+		return
+	}
+
+	file, err = bo.LoadFile("goo")
+	if err == nil {
+		t.Error("Bo Expected load file failure")
+		return
+	}
+
+	msgid, err = alice.ShareFile("rhyme", "bo")
+	if err != nil {
+		t.Error("Failed ShareFile:", err)
+		return
+	}
+	err = bo.ReceiveFile("goo2", "alice", msgid)
+	if err != nil {
+		t.Error("Failed ReceiveFile:", err)
+		return
+	}
+
+	file, err = bo.LoadFile("goo2")
+	if err != nil {
+		t.Error("Failed LoadFile:", err)
+		return
+	}
+	if !isEqualByteArrays(finalVerse, file) {
+		t.Error("File contents changed after revoke")
 	}
 
 	userlib.DatastoreClear()
