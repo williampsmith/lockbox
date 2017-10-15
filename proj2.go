@@ -378,6 +378,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok {
+		debugMsg("AppendFile -- Filename: %s", filename)
 		return errors.New("File not found, please check filename")
 	}
 
@@ -511,9 +512,9 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 }
 
 // You may want to define what you actually want to pass as a
-// sharingRecord to serialized/deserialize in the data store.
-type sharingRecord struct {
-	privateFileMetadata []byte // Marshaled FileMetaData
+// SharingRecord to serialized/deserialize in the data store.
+type SharingRecord struct {
+	PrivateFileMetadata []byte // Marshaled FileMetaData
 	Signature           []byte
 }
 
@@ -551,14 +552,15 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 		panic(err)
 	}
 
-	sharedRecord := sharingRecord{
-		privateFileMetadata: ciphertext,
+	sharedRecord := SharingRecord{
+		PrivateFileMetadata: ciphertext,
 		Signature:           rsaSignature,
 	}
 	message, err := json.Marshal(sharedRecord)
 	if err != nil {
 		panic(err)
 	}
+	debugMsg("ShareFie -- ciphertext: %s", ciphertext)
 	debugMsg("ShareFie -- Shared Record: %s", sharedRecord)
 	debugMsg("ShareFie -- Shared Record JSON: %s", message)
 
@@ -573,7 +575,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	msgid string) error {
 	sharedRecordJSON := []byte(msgid)
 
-	var sharedRecord sharingRecord
+	var sharedRecord SharingRecord
 	err := json.Unmarshal(sharedRecordJSON, &sharedRecord)
 	if err != nil {
 		panic(err)
@@ -591,16 +593,16 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	}
 	if userlib.RSAVerify(
 		&senderKey,
-		sharedRecord.privateFileMetadata,
+		sharedRecord.PrivateFileMetadata,
 		sharedRecord.Signature,
 	) != nil {
-		debugMsg("File Metadata is: %s", string(sharedRecord.privateFileMetadata))
+		debugMsg("File Metadata is: %s", string(sharedRecord.PrivateFileMetadata))
 		return errors.New("Message verification failed.")
 	}
 
 	message, err := userlib.RSADecrypt(
 		&userdata.PrivateKey,
-		sharedRecord.privateFileMetadata,
+		sharedRecord.PrivateFileMetadata,
 		nil,
 	)
 
@@ -634,7 +636,7 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 
 	// encrypt and mac metadata with random keys =====================
 	randomCiphertext := CFBEncrypt(randomEncryptKey, originalFileData)
-	
+
 	dataLen := uint(len(randomCiphertext))
 
 	revisionMetadata := RevisionMetadata{
@@ -674,4 +676,3 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	userdata.StoreFile(filename, originalFileData)
 	return err
 }
-
