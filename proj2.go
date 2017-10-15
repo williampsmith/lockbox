@@ -321,7 +321,7 @@ func extend(a []byte, newData []byte) []byte {
 	return a
 }
 
-func (userdata *User) StoreMetadata(filename string, metadata *RevisionMetadata) {
+func (userdata *User) storeMetadata(filename string, metadata *RevisionMetadata) {
 	fileMetadata, ok := userdata.OwnedFiles[filename]
 	if !ok { // could be shared instead of owned
 		fileMetadata, ok = userdata.SharedFiles[filename]
@@ -376,7 +376,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 		RevisionSizes: revisionSizes,
 	}
 	debugMsg("StoreFile revisionMetadata is: %v", revisionMetadata)
-	userdata.StoreMetadata(filename, &revisionMetadata)
+	userdata.storeMetadata(filename, &revisionMetadata)
 
 	debugMsg("StoreFile cipher is: %v", ciphertext)
 	fileMAC := HMAC(fileMacKey, ciphertext)
@@ -418,7 +418,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	dataLen := uint(len(ciphertext))
 
 	// update metadata
-	revisionMetadata, err := userdata.LoadMetadata(filename)
+	revisionMetadata, err := userdata.loadMetadata(filename)
 	if err != nil {
 		return err
 	}
@@ -429,7 +429,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 		revisionMetadata.RevisionSizes,
 		dataLen,
 	)
-	userdata.StoreMetadata(filename, revisionMetadata)
+	userdata.storeMetadata(filename, revisionMetadata)
 
 	// append to file and upload
 	file, ok := userlib.DatastoreGet(filePath)
@@ -444,7 +444,7 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	return err
 }
 
-func (userdata *User) LoadMetadata(filename string) (metadata *RevisionMetadata, err error) {
+func (userdata *User) loadMetadata(filename string) (metadata *RevisionMetadata, err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok { // could be shared instead of owned
 		fileMetaData, ok = userdata.SharedFiles[filename]
@@ -501,7 +501,7 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	filePath := "file/" + fileMetaData.FileID.String()
 	debugMsg("LoadFile filepath is: %v", filePath)
 
-	revisionMetadata, err := userdata.LoadMetadata(filename)
+	revisionMetadata, err := userdata.loadMetadata(filename)
 	if err != nil {
 		return nil, err
 	}
