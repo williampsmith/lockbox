@@ -540,13 +540,21 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	}
 
 	// retrieve private file metadata
-	fileMetadata, err := json.Marshal(userdata.OwnedFiles[filename])
+	fileMetaData, ok := userdata.OwnedFiles[filename]
+	if !ok { // could be shared instead of owned
+		fileMetaData, ok = userdata.SharedFiles[filename]
+		if !ok {
+			return "", errors.New("File not found, please check filename")
+		}
+	}
+
+	fileMetaDataJSON, err := json.Marshal(fileMetaData)
 	if err != nil {
 		panic(err)
 	}
 
 	// encrypt and sign
-	ciphertext, err := userlib.RSAEncrypt(&recipientKey, fileMetadata, nil)
+	ciphertext, err := userlib.RSAEncrypt(&recipientKey, fileMetaDataJSON, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -563,9 +571,9 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	if err != nil {
 		panic(err)
 	}
-	debugMsg("ShareFie -- ciphertext: %s", ciphertext)
-	debugMsg("ShareFie -- Shared Record: %s", sharedRecord)
-	debugMsg("ShareFie -- Shared Record JSON: %s", message)
+	debugMsg("ShareFile -- ciphertext: %s", ciphertext)
+	debugMsg("ShareFile -- Shared Record: %s", sharedRecord)
+	debugMsg("ShareFile -- Shared Record JSON: %s", message)
 
 	return string(message), err
 }
