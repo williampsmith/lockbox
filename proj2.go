@@ -378,8 +378,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
 	if !ok {
-		debugMsg("AppendFile -- Filename: %s", filename)
-		return errors.New("File not found, please check filename")
+		fileMetaData, ok = userdata.SharedFiles[filename]
+		if !ok {
+			debugMsg("AppendFile -- Filename: %s", filename)
+			return errors.New("File not found, please check filename")
+		}
 	}
 
 	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)

@@ -108,7 +108,7 @@ func TestUserCollisions(t *testing.T) {
 }
 
 func TestSharedAppend(t *testing.T) {
-	DebugPrint = true
+	DebugPrint = false
 	fillDataStore(t)
 	alice, err := GetUser("alice", "fubar")
 	if err != nil {
