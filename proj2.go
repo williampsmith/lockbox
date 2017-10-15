@@ -377,11 +377,11 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 
 func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	fileMetaData, ok := userdata.OwnedFiles[filename]
-	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)
-
 	if !ok {
 		return errors.New("File not found, please check filename")
 	}
+
+	ciphertext := CFBEncrypt(fileMetaData.EncryptKey, data)
 
 	filePath := "file/" + fileMetaData.FileID.String()
 	metadataPath := "meta/" + fileMetaData.FileID.String()
@@ -604,12 +604,65 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 // Removes access for all others.
 func (userdata *User) RevokeFile(filename string) (err error) {
-	fileData, err := userdata.LoadFile(filename)
+	// Check if file belongs to user
+	fileMetaData, ok := userdata.OwnedFiles[filename]
+	if !ok { // could be shared instead of owned
+		return errors.New("Revoke File not found or you are not the original owner")
+	}
+
+	originalFileData, err := userdata.LoadFile(filename)
 	if err != nil {
 		return err
 	}
 
-	// StoreFile generates new location and new keys
-	userdata.StoreFile(filename, fileData)
+	// First we re-encrypt current location with random keys
+	oldFileID := fileMetaData.FileID
+	randomEncryptKey := randomBytes(16)
+	randomMACKey := randomBytes(16)
+
+	oldFilePath := "file/" + oldFileID.String()
+	oldMetadataPath := "meta/" + oldFileID.String()
+
+	// encrypt and mac metadata with random keys =====================
+	randomCiphertext := CFBEncrypt(randomEncryptKey, originalFileData)
+	
+	dataLen := uint(len(randomCiphertext))
+
+	revisionMetadata := RevisionMetadata{
+		FileSize:      dataLen,
+		NumRevisions:  1,
+		RevisionSizes: []uint{dataLen},
+	}
+
+	revisionJSON, err := json.Marshal(revisionMetadata)
+	if err != nil {
+		panic(err)
+	}
+
+	sharedMetadata := SharedMetadata{
+		Metadata:    revisionJSON,
+		MetadataMAC: HMAC(randomMACKey, revisionJSON),
+	}
+
+	sharedMetadataJSON, err := json.Marshal(sharedMetadata)
+	if err != nil {
+		panic(err)
+	}
+	// Done: encrypt and mac metadata with random keys =====================
+
+	// Revoke access by to everyone by storing random contents =====================
+	userlib.DatastoreSet(oldMetadataPath, sharedMetadataJSON)
+	var randomData []byte
+	mac := HMAC(randomMACKey, randomCiphertext)
+	randomData = extend(randomData, mac)
+	randomData = extend(randomData, randomCiphertext)
+	userlib.DatastoreSet(oldFilePath, randomData)
+	// Done: Revoke access by to everyone by storing random contents =====================
+
+	userlib.DatastoreDelete(oldFilePath)
+	
+	// Copy file to new location. StoreFile generates new location and new keys
+	userdata.StoreFile(filename, originalFileData)
 	return err
 }
+
