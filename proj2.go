@@ -604,5 +604,12 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 
 // Removes access for all others.
 func (userdata *User) RevokeFile(filename string) (err error) {
-	return
+	fileData, err := userdata.LoadFile(filename)
+	if err != nil {
+		return err
+	}
+	
+	// StoreFile generates new location and new keys
+	userdata.StoreFile(filename, fileData)
+	return err
 }
