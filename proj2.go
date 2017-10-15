@@ -536,13 +536,13 @@ func (userdata *User) ShareFile(filename string, recipient string) (
 	}
 
 	// retrieve private file metadata
-	sharedMetadata, err := json.Marshal(userdata.OwnedFiles[filename])
+	fileMetadata, err := json.Marshal(userdata.OwnedFiles[filename])
 	if err != nil {
 		panic(err)
 	}
 
 	// encrypt and sign
-	ciphertext, err := userlib.RSAEncrypt(&recipientKey, sharedMetadata, nil)
+	ciphertext, err := userlib.RSAEncrypt(&recipientKey, fileMetadata, nil)
 	if err != nil {
 		panic(err)
 	}
