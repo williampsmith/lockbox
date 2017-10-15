@@ -616,6 +616,7 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	}
 
 	// First we re-encrypt current location with random keys
+	// Can also load it with random data
 	oldFileID := fileMetaData.FileID
 	randomEncryptKey := randomBytes(16)
 	randomMACKey := randomBytes(16)
@@ -660,7 +661,7 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	// Done: Revoke access by to everyone by storing random contents =====================
 
 	userlib.DatastoreDelete(oldFilePath)
-	
+
 	// Copy file to new location. StoreFile generates new location and new keys
 	userdata.StoreFile(filename, originalFileData)
 	return err
