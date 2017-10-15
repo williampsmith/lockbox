@@ -624,13 +624,21 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	}
 
 	// First we re-encrypt current location with random keys
-	// Can also load it with random data
 	oldFileID := fileMetaData.FileID
 	randomEncryptKey := randomBytes(16)
 	randomMACKey := randomBytes(16)
 
 	oldFilePath := "file/" + oldFileID.String()
 	oldMetadataPath := "meta/" + oldFileID.String()
+
+	// Can also load it with random data =====================
+	// randomData := make([]byte, len(originalFileData) + 512)
+	// if _, err := io.ReadFull(userlib.Reader, randomData); err != nil {
+	// 	panic(err)
+	// userlib.DatastoreSet(oldMetadataPath, randomData)
+	// userlib.DatastoreSet(oldFilePath, randomData)
+	// }
+	// =======================================================
 
 	// encrypt and mac metadata with random keys =====================
 	randomCiphertext := CFBEncrypt(randomEncryptKey, originalFileData)
