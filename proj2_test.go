@@ -107,8 +107,8 @@ func TestLenCap(t *testing.T) {
 
 	var file []byte
 	file, err = user.LoadFile("LenCap")
-	if err != nil {
-		t.Error("Failed LoadFile:", err)
+	if err != nil || file == nil {
+		t.Error("Failed LoadFile. err: %s, file: %s", file)
 		return
 	}
 
@@ -118,10 +118,12 @@ func TestLenCap(t *testing.T) {
 
 	userlib.DatastoreClear()
 	file, err = user.LoadFile("LenCap")
-	if err == nil {
+	if err != nil {
 		// Expecting there to be an error, but there was no error
-		t.Error("Failed LoadFile expecting an error, but got no error")
+		t.Error("File not found should not return an error")
 		return
+	} else if file != nil {
+		t.Error("Expected LoadFile on non-existent file to return nil, but did not.")
 	}
 	userlib.DatastoreClear()
 }
@@ -155,11 +157,13 @@ func TestUserCollisions(t *testing.T) {
 		t.Error("Failed GetUser expecting an error, but got no error")
 		return
 	}
-	if (userA.Username == userB.Username) || (userA.Username == userC.Username) || (userB.Username == userC.Username) {
+	if (userA.Username == userB.Username) ||
+		(userA.Username == userC.Username) || (userB.Username == userC.Username) {
 		t.Error("User data login caused collision")
 		return
 	}
-	if (userA.PublicKey == userB.PublicKey) || (userA.PublicKey == userC.PublicKey) || (userB.PublicKey == userC.PublicKey) {
+	if (userA.PublicKey == userB.PublicKey) ||
+		(userA.PublicKey == userC.PublicKey) || (userB.PublicKey == userC.PublicKey) {
 		t.Error("User data login caused collision")
 		return
 	}
@@ -182,6 +186,10 @@ func TestSameUser(t *testing.T) {
 
 	alice.StoreFile("todo", []byte("write tests"))
 	todo, err := also_alice.LoadFile("todo")
+	if err != nil || todo == nil {
+		t.Error("Failed to load file.", err)
+		return
+	}
 	if string(todo) != "write tests" {
 		t.Error("Same user and password could not access file: ", err)
 	}
@@ -216,7 +224,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 
 	var file []byte
 	file, err = alice.LoadFile("rhyme")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile:", err)
 		return
 	}
@@ -234,7 +242,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 
 	verses1And2 := []byte("Simple Simon met a pie-man ")
 	file, err = alice.LoadFile("rhyme")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile:", err)
 		return
 	}
@@ -285,7 +293,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 	// ==================================================
 
 	file, err = alice.LoadFile("rhyme")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile:", err)
 		return
 	}
@@ -295,7 +303,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 	}
 
 	file, err = bo.LoadFile("goo")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile:", err)
 		return
 	}
@@ -320,7 +328,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 	}
 
 	file, err = alice.LoadFile("rhyme")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile:", err)
 		return
 	}
@@ -329,13 +337,13 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 	}
 
 	file, err = bob.LoadFile("flow")
-	if err == nil {
+	if err == nil || file == nil {
 		t.Error("Bob Expected load file failure")
 		return
 	}
 
 	file, err = bo.LoadFile("goo")
-	if err == nil {
+	if err == nil || file == nil {
 		t.Error("Bo Expected load file failure")
 		return
 	}
@@ -352,7 +360,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 	}
 
 	file, err = bo.LoadFile("goo2")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile:", err)
 		return
 	}
@@ -366,7 +374,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 		return
 	}
 	file, err = alice2.LoadFile("rhyme")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile userdata contents did not persist:", err)
 		return
 	}
@@ -380,7 +388,7 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 		return
 	}
 	file, err = bo2.LoadFile("goo2")
-	if err != nil {
+	if err != nil || file == nil {
 		t.Error("Failed LoadFile userdata shared contents did not persist:", err)
 		return
 	}

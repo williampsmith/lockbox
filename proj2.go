@@ -287,7 +287,8 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 	var emac EMAC
 	err = json.Unmarshal(data, &emac)
 	if err != nil {
-		panic(err)
+		return nil, errors.New(
+			"Unmarshal failed. User Data may have been tampered with.")
 	}
 
 	// check MAC of encrypted data to ensure no tampering
@@ -462,7 +463,8 @@ func (userdata *User) loadMetadata(filename string) (metadata *RevisionMetadata,
 	var sharedMetadata SharedMetadata
 	err = json.Unmarshal(sharedMetadataJSON, &sharedMetadata)
 	if err != nil {
-		panic(err)
+		return nil, errors.New(
+			"Unmarshaling failed. Metadata may have been tampered with.")
 	}
 	if !VerifyHMAC(
 		fileMetaData.MACKey,
@@ -474,7 +476,8 @@ func (userdata *User) loadMetadata(filename string) (metadata *RevisionMetadata,
 	var revisionMetadata RevisionMetadata
 	err = json.Unmarshal(sharedMetadata.Metadata, &revisionMetadata)
 	if err != nil {
-		panic(err)
+		return nil, errors.New(
+			"Unmarshaling failed. User data may have been tampered with.")
 	}
 
 	debugMsg("LoadFile revisionMetadata is: %v", revisionMetadata)
@@ -505,7 +508,7 @@ func (userdata *User) getPrivateMetadata(filename string) (
 func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 	fileMetaData, err := userdata.getPrivateMetadata(filename)
 	if err != nil {
-		return nil, err
+		return nil, nil // return nil if file not found for user (not error)
 	}
 
 	filePath := "file/" + fileMetaData.FileID.String()
@@ -614,11 +617,9 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var sharedRecord SharingRecord
 	err := json.Unmarshal(sharedRecordJSON, &sharedRecord)
 	if err != nil {
-		panic(err)
+		return errors.New(
+			"Unmarshaling failed. Message may have been tampered with.")
 	}
-
-	debugMsg("ReceiveFile -- Shared Record: %s", sharedRecord)
-	debugMsg("ReceiveFile -- Shared Record JSON: %s", sharedRecordJSON)
 
 	// verify message signature and decrypt
 	senderKey, ok := userlib.KeystoreGet(sender)
@@ -632,8 +633,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 		sharedRecord.PrivateFileMetadata,
 		sharedRecord.Signature,
 	) != nil {
-		debugMsg("File Metadata is: %s", string(sharedRecord.PrivateFileMetadata))
-		return errors.New("Message verification failed.")
+		return errors.New("Message verification failed. Data tampered with.")
 	}
 
 	message, err := userlib.RSADecrypt(
@@ -643,7 +643,12 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	)
 
 	var fileMetadata FileMetadata
-	json.Unmarshal(message, &fileMetadata)
+	err = json.Unmarshal(message, &fileMetadata)
+	if err != nil {
+		return errors.New(
+			"Unmarshaling failed. Message may have been tampered with.")
+	}
+
 	userdata.SharedFiles[filename] = fileMetadata
 	err = storeUserData(*userdata)
 	if err != nil {
