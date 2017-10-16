@@ -89,6 +89,92 @@ func TestStorage(t *testing.T) {
 	userlib.DatastoreClear()
 }
 
+func TestTamperedLoadMetadata(t *testing.T) {
+	DebugPrint = true
+	fillDataStore(t)
+
+	user, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed GetUser:", err)
+		return
+	}
+
+	user.StoreFile("meta", []byte("Don't mess with my metadata"))
+
+	privateMetadata, err := user.getPrivateMetadata("meta")
+	if err != nil {
+		t.Error("Failed to retrieve private metadata:", err)
+		return
+	}
+
+	revisionMetadata, err := user.loadMetadata("meta")
+	if err != nil || revisionMetadata == nil {
+		t.Error("Failed to retrieve revision metadata:", err)
+		return
+	}
+
+	metaDataPath := "meta/" + privateMetadata.FileID.String()
+	corruptData(metaDataPath)
+
+	revisionMetadata, err = user.loadMetadata("meta")
+	if err == nil || revisionMetadata != nil {
+		t.Error("Expected corrupted metadata to fail, but passed")
+		return
+	}
+
+	userlib.DatastoreClear()
+}
+
+func TestTamperedLoadFile(t *testing.T) {
+	DebugPrint = false
+	fillDataStore(t)
+
+	user, err := GetUser("alice", "fubar")
+	if err != nil {
+		t.Error("Failed GetUser:", err)
+		return
+	}
+
+	user.StoreFile("meta", []byte("Don't mess with my metadata"))
+
+	privateMetadata, err := user.getPrivateMetadata("meta")
+	if err != nil {
+		t.Error("Failed to retrieve private metadata:", err)
+		return
+	}
+
+	// successful file load
+	file, err := user.LoadFile("meta")
+	if err != nil || file == nil {
+		t.Error("Failed to load file:", err)
+		return
+	}
+
+	// non-existent file load
+	file, err = user.LoadFile("beta")
+	if err != nil {
+		t.Error("Error should not be thrown on file not found", err)
+		return
+	} else if file != nil {
+		t.Error("LoadFile on non-existent file returned non-nil value")
+		return
+	}
+
+	// corrupted data file load
+	filepath := "file/" + privateMetadata.FileID.String()
+	err = corruptData(filepath)
+	if err != nil {
+		t.Error("data corruption failed:", err)
+	}
+	file, err = user.LoadFile("meta")
+	if err == nil || file != nil {
+		t.Error("Expected error and nil file return for corrupted file")
+		return
+	}
+
+	userlib.DatastoreClear()
+}
+
 func TestLenCap(t *testing.T) {
 	fillDataStore(t)
 	user, err := GetUser("alice", "fubar")
@@ -108,7 +194,7 @@ func TestLenCap(t *testing.T) {
 	var file []byte
 	file, err = user.LoadFile("LenCap")
 	if err != nil || file == nil {
-		t.Error("Failed LoadFile. err: %s, file: %s", file)
+		t.Error("Failed LoadFile")
 		return
 	}
 
@@ -337,13 +423,13 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 	}
 
 	file, err = bob.LoadFile("flow")
-	if err == nil || file == nil {
+	if err == nil || file != nil {
 		t.Error("Bob Expected load file failure")
 		return
 	}
 
 	file, err = bo.LoadFile("goo")
-	if err == nil || file == nil {
+	if err == nil || file != nil {
 		t.Error("Bo Expected load file failure")
 		return
 	}
