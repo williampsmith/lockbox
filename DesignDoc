@@ -30,7 +30,7 @@ Overall Datastore Structure
 		Ke is used for encrypting and decrypting
 		Ka is used for authenticating
 		Ke, Ka are unique to each user and retreived using PBKDF2
-		FileID, Ke', Ka' are unique to each file
+		FileID, Ke', Ka' are unique to each file and are randomly generated
 		Every user who has access to a file stores (FileID, Ke', Ka') in their User struct in OwnedFiles[filename] or SharedFiles[filename]
 
 InitUser
