@@ -349,8 +349,15 @@ func TestSharedAppendAndRevoke(t *testing.T) {
 		return
 	}
 
-	msgid2, err := bob.ShareFile("flow", "bo")
-	if err != nil {
+	// does not have access to file under other users' filename
+	msgid2, err := bob.ShareFile("rhyme", "bo")
+	if err == nil || msgid2 != "" {
+		t.Error("User should not have access to file under other user's local filename")
+		return
+	}
+
+	msgid2, err = bob.ShareFile("flow", "bo")
+	if err != nil || msgid2 == "" {
 		t.Error("Failed ShareFile:", err)
 		return
 	}
