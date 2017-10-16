@@ -1,0 +1,96 @@
+
+
+User: username, password, RSA Private Key, RSA Public Key, OwnedFiles, SharedFiles
+
+Keys for the user:
+Ke, Ka are symmetric master keys specific to each user and are generated using PBKDF2(password, salt=SHA256(username), 2 x AESKeySize)
+Ke is the first 16 bytes and Ka is the second 16 bytes of PBKDF2
+Ke is used for encrypting and decrypting
+Ka is used for authenticating
+
+Keys for file storage:
+FileKeys: FileID, Ke',Ka'
+SharedMetaData: FileSize (uint), numRevisions (uint), RevisionSizes ([]uint)
+FileID is a randomly generated uuid and Ke', Ka' are randomly generated 16 byte keys
+FileSize is the total length of the cipher text, numRevisions is number of appends + 1, RevisionSizes is an array of size of ciphertext of each append
+
+
+Datastore paths are computed as follows:
+"logins/" || UserID; UserID = HMAC(Ka, username)
+"meta/" || FileID
+"file/" || FileID
+
+Overall Datastore Structure
+	"logins/<UserID>" : c || HMAC(Ka, c)													where c = CFBEncrypt(Ke, userdata)
+	"meta/<FileID>"	  : metadata || HMAC(Ka', metadata)										where metadata = (FileSize, numRevisions, RevisionSizes)
+	"file/<FileID>"   : HMAC(Ka', c_0 || 0) || c_0 || HMAC(Ka', c_1 || 1) || c_1 || ...		where c_i =  CFBEncrypt(Ke', fileplaintext_i)
+
+		In "file/<FileID>", we concatenate with index (0, 1, ...) to prevent attacker from swapping the contents
+
+		Ke is used for encrypting and decrypting
+		Ka is used for authenticating
+		Ke, Ka are unique to each user and retreived using PBKDF2
+		FileID, Ke', Ka' are unique to each file
+		Every user who has access to a file stores (FileID, Ke', Ka') in their User struct in OwnedFiles[filename] or SharedFiles[filename]
+
+InitUser
+	- Compute Ke and Ka from PBKDF2
+	- Generate RSA Private and RSA Public keys
+	- Keystore to KeystoreSet: (username, RSA Public key)
+	- Datastore to "logins/<UserID>": c || HMAC(Ka, c) where c = CFBEncrypt(Ke, userdata)
+
+GetUser
+	- Compute Ke and Ka from PBKDF2
+	- Get from "logins/<userID>": c || HMAC(Ka, c)
+	- Verify: compute HMAC(Ka, c) and compare to what was stored
+	- User's userdata = CFBDecrypt(Ke, c)
+	- Return userdata
+
+StoreFile
+	- Generate random (FileID, Ke', Ka')
+	- Store (FileID, Ke', Ka') in User's OwnedFiles[filename]
+	- c = CFBEncrypt(Ke', file contents)
+	- metaData = (len(c), numRevisions{1}, RevisionSizes{[len(c)]})
+	- Datastore to "meta/<FileID>": metadata || HMAC(Ka', metadata)
+	- Datastore to "file/<FileID>": HMAC(Ka', c || index) || c
+
+AppendFile
+	- Get metadata from "meta/<FileID>"
+	- Verify HMAC(Ka', metadata)
+	- c = CFBEncrypt(Ke', append contents)
+	- Modify metadata: (length += len(c), numRevisions++, ReivisionSizes.append(len(c))
+	- Datastore to "meta/<FileID>": metadata || HMAC(Ka', metadata)
+	- Append to file at "file/<FileID>" : HMAC(Ka', c || index) || c
+
+LoadFile
+	- Get metadata from "meta/<FileID>"
+	- Verify HMAC(Ka', metadata)
+	- Get ciphertext chunks from "file/<FileID>"
+	- Using metadata, iterate through ciphertext chunks
+		- Read each HMAC(Ka', c_i || index) || c_i
+		- Verify each HMAC(Ka', c_i || index)
+	- Return the concatenatation of every plaintext_i = CFBDecrypt(Ke', c_i)
+
+ShareFile
+	- Get (FileID, Ke', Ka') from User's OwnedFiles[filename] or SharedFiles[filename]
+	- c = RSAEncrypt(Recipient public key, (FileID, Ke', Ka'))
+	- sig = RSASign(Sender private key, c)
+	- Return c || sig
+
+ReceiveFile
+	- RSAVerify(Sender public key, c)
+	- (FileID, Ke', Ka') = RSADecrypt(Recipient private key, c)
+	- Store (FileID, Ke', Ka') in User's SharedFiles[filename]
+
+RevokeFile
+	- Owner check: check if file is in User's OwnedFiles[filename]
+	- Get original file plaintext by calling LoadFile on filename
+	- Re-encrypt original Datastore location with random keys so no one can read or authenticate it
+		- Generate random Ke'', Ka''
+		- Re-encrypt and re-authenticate contents at "file/<FileID>" with Ke'', Ka''
+		- Modify and re-authenticate contents at "meta/<FileID>" with Ke''
+	- Call DatastoreDelete on "file/<FileID>" and "meta/<FileID>"
+	- Call StoreFile on original file plaintext, StoreFile will generate a new random (FileID, Ke', Ka') for the User
+
+
+
