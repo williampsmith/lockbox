@@ -239,8 +239,11 @@ func dataStoreUserData(userdata User) (err error) {
 		userlib.AESKeySize*2,
 	)
 
-	macKey, encryptKey := masterKey[:userlib.AESKeySize], masterKey[userlib.AESKeySize:]
-	path := "logins/" + string(HMAC(macKey, []byte(userdata.Username)))
+	macKey := masterKey[:userlib.AESKeySize]
+	encryptKey := masterKey[userlib.AESKeySize:]
+	path := "logins/" + bytesToUUID(
+		HMAC(macKey, []byte(userdata.Username))).String()
+
 	userJSON, err := json.Marshal(userdata)
 	if err != nil {
 		panic(err)
@@ -270,8 +273,9 @@ func GetUser(username string, password string) (userdataptr *User, err error) {
 		userlib.AESKeySize*2,
 	)
 
-	macKey, encryptKey := masterKey[:userlib.AESKeySize], masterKey[userlib.AESKeySize:]
-	path := "logins/" + string(HMAC(macKey, []byte(username)))
+	macKey := masterKey[:userlib.AESKeySize]
+	encryptKey := masterKey[userlib.AESKeySize:]
+	path := "logins/" + bytesToUUID(HMAC(macKey, []byte(username))).String()
 	data, ok := userlib.DatastoreGet(path)
 
 	// If this fails, did not find the file. Either

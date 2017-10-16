@@ -48,6 +48,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestStorage(t *testing.T) {
+	DebugPrint = true
 	fillDataStore(t)
 
 	v, err := GetUser("alice", "fubar")
@@ -77,7 +78,7 @@ func TestStorage(t *testing.T) {
 	)
 
 	macKey := masterKey[:userlib.AESKeySize]
-	path := "logins/" + string(HMAC(macKey, []byte("alice")))
+	path := "logins/" + bytesToUUID(HMAC(macKey, []byte("alice"))).String()
 	corruptData(path)
 
 	v, err = GetUser("alice", "fubar")
