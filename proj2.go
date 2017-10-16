@@ -224,7 +224,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	userdata.PublicKey = key.PublicKey
 
 	userlib.KeystoreSet(userdata.Username, userdata.PublicKey)
-	err = dataStoreUserData(userdata)
+	err = storeUserData(userdata)
 	if err != nil {
 		panic(err)
 	}
@@ -232,7 +232,7 @@ func InitUser(username string, password string) (userdataptr *User, err error) {
 	return &userdata, err
 }
 
-func dataStoreUserData(userdata User) (err error) {
+func storeUserData(userdata User) (err error) {
 	masterKey := userlib.PBKDF2Key(
 		[]byte(userdata.Password),
 		Hash([]byte(userdata.Username)),
@@ -395,7 +395,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	filePath := "file/" + fileID.String()
 	debugMsg("StoreFile filepath is: %v", filePath)
 	userlib.DatastoreSet(filePath, fileData)
-	err := dataStoreUserData(*userdata)
+	err := storeUserData(*userdata)
 	if err != nil {
 		panic(err)
 	}
@@ -645,7 +645,7 @@ func (userdata *User) ReceiveFile(filename string, sender string,
 	var fileMetadata FileMetadata
 	json.Unmarshal(message, &fileMetadata)
 	userdata.SharedFiles[filename] = fileMetadata
-	err = dataStoreUserData(*userdata)
+	err = storeUserData(*userdata)
 	if err != nil {
 		panic(err)
 	}
