@@ -94,3 +94,23 @@ RevokeFile
 
 
 
+	Security Analysis
+
+	Data Swap Attack: The malicious server does not know the contents of the file, nor the name of the file,
+	but can see that file/<r> corresponds to meta/<r>, and hence perform a swap of the data at
+	file/<r1> with the data at file/<r2>, and to avoid detection, swap the data at meta<r1> with
+	the data at meta/<r2>. This exploit will fail, however, because we have a unique MAC key corresponding
+	to each individual file which MAC's the file and the associated metadata. This MAC is stored in the
+	user's revisionMetaData struct within the User struct. Since this has not been swapped, the MAC's will fail.
+
+	Filename Dictionary Attack: The malicious server attempts to identify the file by keying on known filenames,
+	or precomputed hash values of known filenames. This will fail, because the filename is generated as a random
+	UUID, which is saved as file metadata within the User struct, and only shared via RSA encryption to shared users.
+	Therefore, to break the filename, the server must break the encryption on the User struct.
+
+	ShareFile Man in the Middle Attack: Some external attacker mounts a man in the middle attack on the communication channel
+	between two users sharing a message. If the attacker tries to eavesdrop, it will fail, due to the data being encrypted by RSA.
+	To decrypt, the attacker would need to know the recipient's private key, which would require breaking the block cipher encryption
+	of his User struct. If the attacker tries to tamper with the message it will fail, due to the data containing an RSA Signature.
+	In order to tamper with it and resign, the attacker would need to know the sender's private key, which would require breaking the
+	block cipher encryption of her User struct.
