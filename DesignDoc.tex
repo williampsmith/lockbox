@@ -1,116 +1,84 @@
+% Search for all the places that say "PUT SOMETHING HERE".
 
+\documentclass[11pt]{article}
+\usepackage{amsmath,textcomp,amssymb,geometry,graphicx,enumerate,algpseudocode,mathrsfs}
 
-User: username, password, RSA Private Key, RSA Public Key, OwnedFiles, SharedFiles
+\def\NameA{William Smith}  % Your name
+\def\SIDA{26004555}  % Your student ID number
+\def\NameB{Gera Groshev}  % Your name
+\def\SIDB{26741303}  % Your student ID number
+\def\Session{Fall 2017}
 
-Keys for the user:
-Ke, Ka are symmetric master keys specific to each user and are generated using PBKDF2(password, salt=SHA256(username), 2 x AESKeySize)
-Ke is the first 16 bytes and Ka is the second 16 bytes of PBKDF2
-Ke is used for encrypting and decrypting
-Ka is used for authenticating
+\title{CS 161\ \ \ Fall 2017\ \ \ Project 2 Design Document}
+\author{\NameA, SID \SIDA, \NameB, SID \SIDB}
+\markboth{CS161--\Session\ Project 2 Design Document\ \Name}{CS161--\Session\ Project 2 Design Document \Name}
+\pagestyle{myheadings}
+\date{}
 
-Keys for file storage:
-FileKeys: FileID, Ke',Ka'
-SharedMetaData: FileSize (uint), numRevisions (uint), RevisionSizes ([]uint)
-FileID is a randomly generated uuid and Ke', Ka' are randomly generated 16 byte keys
-FileSize is the total length of the cipher text, numRevisions is number of appends + 1, RevisionSizes is an array of size of ciphertext of each append
+\newenvironment{qparts}{\begin{enumerate}[{(}a{)}]}{\end{enumerate}}
+\def\endproofmark{$\Box$}
+\newenvironment{proof}{\par{\bf Proof}:}{\endproofmark\smallskip}
 
+\textheight=9in
+\textwidth=6.5in
+\topmargin=-.75in
+\oddsidemargin=0.25in
+\evensidemargin=0.25in
 
-Datastore paths are computed as follows:
-"logins/" || UserID; UserID = HMAC(Ka, username)
-"meta/" || FileID
-"file/" || FileID
+\algtext*{EndWhile}
+\algtext*{EndIf}
+\algtext*{EndFunction}
+\algtext*{EndFor}
 
-Overall Datastore Structure
-	"logins/<UserID>" : c || HMAC(Ka, c)													where c = CFBEncrypt(Ke, userdata)
-	"meta/<FileID>"	  : metadata || HMAC(Ka', metadata)										where metadata = (FileSize, numRevisions, RevisionSizes)
-	"file/<FileID>"   : HMAC(Ka', c_0 || 0) || c_0 || HMAC(Ka', c_1 || 1) || c_1 || ...		where c_i =  CFBEncrypt(Ke', fileplaintext_i)
+\usepackage{lmodern}
 
-		In "file/<FileID>", we concatenate with index (0, 1, ...) to prevent attacker from swapping the contents
+\begin{document}
+\maketitle
 
-		Ke is used for encrypting and decrypting
-		Ka is used for authenticating
-		Ke, Ka are unique to each user and retreived using PBKDF2
-		FileID, Ke', Ka' are unique to each file and are randomly generated
-		Every user who has access to a file stores (FileID, Ke', Ka') in their User struct in OwnedFiles[filename] or SharedFiles[filename]
+\section{Design of System}
+\begin{enumerate}
+\item{Simple Upload/Download}
 
-InitUser
-	- Compute Ke and Ka from PBKDF2
-	- Generate RSA Private and RSA Public keys
-	- Keystore to KeystoreSet: (username, RSA Public key)
-	- Datastore to "logins/<UserID>": c || HMAC(Ka, c) where c = CFBEncrypt(Ke, userdata)
+The User struct contains the following: username, password, a private RSA key, a public RSA key, and two maps -- OwnedFiles and ShareFiles -- both of which map a Filename (local to the user, and not shared) to a FileMetadata struct. The FileMetadata struct contains private metadata information pertaining to that file, including FileID (a random UUID generated during file storage), EncryptKey and MACKey (both random byte arrays of size 16), all generated during file storage. RSA keys are generated in InitUser, and all other User struct data is populated in InitUser.
 
-GetUser
-	- Compute Ke and Ka from PBKDF2
-	- Get from "logins/<userID>": c || HMAC(Ka, c)
-	- Verify: compute HMAC(Ka, c) and compare to what was stored
-	- User's userdata = CFBDecrypt(Ke, c)
-	- Return userdata
+\textbf{InitUser}: To save the user, we generate 2 keys using PBKDF2 on the user's password, and passing in SHA256(username) as salt to prevent dictionary attacks (username is globally unique). These serve as the encrypt and MAC keys for the User struct. We then encrypt and MAC the User struct using these keys, and save it in the datastore at location "logins/userID", where userID is computed as UUID(HMAC(username, MacKey)).\\
 
-StoreFile
-	- Generate random (FileID, Ke', Ka')
-	- Store (FileID, Ke', Ka') in User's OwnedFiles[filename]
-	- c = CFBEncrypt(Ke', file contents)
-	- metaData = (len(c), numRevisions{1}, RevisionSizes{[len(c)]})
-	- Datastore to "meta/<FileID>": metadata || HMAC(Ka', metadata)
-	- Datastore to "file/<FileID>": HMAC(Ka', c || index) || c
+\textbf{GetUser}: To load a user, we regenerate the MacKey and EncryptKey from the username and password, and use this to regenerate userID, then load from the datastore, check the MAC, and decrypt.\\
 
-AppendFile
-	- Get metadata from "meta/<FileID>"
-	- Verify HMAC(Ka', metadata)
-	- c = CFBEncrypt(Ke', append contents)
-	- Modify metadata: (length += len(c), numRevisions++, ReivisionSizes.append(len(c))
-	- Datastore to "meta/<FileID>": metadata || HMAC(Ka', metadata)
-	- Append to file at "file/<FileID>" : HMAC(Ka', c || index) || c
+In addition to the FileMetadata struct, which is private and saved within the User struct, we have a SharedMetaData struct, which contains the File size, the number of revisions to the file, an array of revision sizes (where the i'th revision size is the size of the i'th revision to the file), and a MAC of all this data.
 
-LoadFile
-	- Get metadata from "meta/<FileID>"
-	- Verify HMAC(Ka', metadata)
-	- Get ciphertext chunks from "file/<FileID>"
-	- Using metadata, iterate through ciphertext chunks
-		- Read each HMAC(Ka', c_i || index) || c_i
-		- Verify each HMAC(Ka', c_i || index)
-	- Return the concatenatation of every plaintext_i = CFBDecrypt(Ke', c_i)
+\textbf{StoreFile}: To store a file named $filename$, we generate the FileMetadata (generate 3 random numbers for FileID, file Encrypt Key and file MAC key), store it in the user's owned files map at $filename$. We generate a MAC as HMAC(macKey, filedata $||$\ $0$). The $0$ is used here to correspond to the revision number. By MAC'ing with the revision number, we prevent revision permutation attacks, wherein the malicous server might permute the data of 2 revisions, as well as their metadata. Now, the order must be maintained for the MAC to be correct. We then encrypt and MAC the file data with the generated keys, and store it as the first revision in the datastore at location "files/FileID", and then create new revision metadata for the file, and store it at "meta/FileID".\\
 
-ShareFile
-	- Get (FileID, Ke', Ka') from User's OwnedFiles[filename] or SharedFiles[filename]
-	- c = RSAEncrypt(Recipient public key, (FileID, Ke', Ka'))
-	- sig = RSASign(Sender private key, c)
-	- Return c || sig
+\textbf{LoadFile}: To load a file, we simply get the private FileMetadata from the user struct, lookup the random FileID, and then Load the file and shared metadata from the datastore at "files/FileID" and "meta/FileID", respectively. We verify the metadata MAC, and then use the metadata to iterate through each revision in the file, each time, verifying the MAC, and then decrypting, and copying over the data. We then return the aggregated, decrypted data. \\
 
-ReceiveFile
-	- RSAVerify(Sender public key, c)
-	- (FileID, Ke', Ka') = RSADecrypt(Recipient private key, c)
-	- Store (FileID, Ke', Ka') in User's SharedFiles[filename]
+\textbf{AppendFile}: To append to a file, we simply load the file and metadata as discussed earlier, check the metadata MAC, and then MAC (including the revision number), encrypt, and append the revision onto the file data, and re-upload the file. Finally, we update the revision metadata with the length of the new revision, the new total length, and increment the number of revisions.\\
 
-RevokeFile
-	- Owner check: check if file is in User's OwnedFiles[filename]
-	- Get original file plaintext by calling LoadFile on filename
-	- Re-encrypt original Datastore location with random keys so no one can read or authenticate it
-		- Generate random Ke'', Ka''
-		- Re-encrypt and re-authenticate contents at "file/<FileID>" with Ke'', Ka''
-		- Modify and re-authenticate contents at "meta/<FileID>" with Ke''
-	- Call DatastoreDelete on "file/<FileID>" and "meta/<FileID>"
-	- Call StoreFile on original file plaintext, StoreFile will generate a new random (FileID, Ke', Ka') for the User
+\item{Sharing}
 
+\textbf{ShareFile}: To share  a file, we simply retrieve the private metadata of the associated file from the OwnedFiles or SharedFiles private dictionary within the sender's User struct. We then retrieve the receiver's Public RSA key from the KeyStore, and use this to encrypt the metadata. We then use the sender's private key to RSASign the encrypted metadata, and return this.\\
 
+\textbf{ReceiveFile}: To receive a shared file and save under the name $f_r$, we simply get the sender's public key from the KeyStore, verify the RSA signature, then use the receiver's private RSA key (in the receiver User struct) to decrypt the data. We then save this data in the SharedFiles map in the receiver's User struct under the name $f_r$. Note that the receiver has no kowledge of the sender's filename, as this is not contained in the private metadata contained in the message.\\
 
-Security Analysis
+\item{Revocation}
 
-Data Swap Attack: The malicious server does not know the contents of the file, nor the name of the file,
-but can see that file/<r> corresponds to meta/<r>, and hence perform a swap of the data at
-file/<r1> with the data at file/<r2>, and to avoid detection, swap the data at meta<r1> with
-the data at meta/<r2>. This exploit will fail, however, because we have a unique MAC key corresponding
-to each individual file which MAC's the file and the associated metadata. This MAC is stored in the
+\textbf{RevokeFile}: To revoke access to a shared file named $f$, we first check that $f$ is contained in the OwnedFiles map of the users's file struct. This prevents non-owners from revoking access to a shared file. We then call LoadFile to get the plaintext version of the file. We then generate a random key $k_t$, encrypt the plaintext with it, and save in the data store at the original location. We \textbf{DO NOT} save $k_t$ anywhere. This essentially makes the data at the original location unrecoverable. We then call StoreFile() on the original plaintext, which will handle re-encrypting, re-MAC'ing, and relocating the file, along with regenerating and re-storing all the associated metadata.
+
+\end{enumerate}
+
+\section{Analysis of Security}
+\begin{enumerate}
+\item
+\textbf{Data Swap Attack}: The malicious server does not know the contents of the file, nor the name of the file,
+but can see that file/r corresponds to meta/r, and hence perform a swap of the data at file/r1 with the data at file/r2, and to avoid detection, swap the data at meta<r1> with the data at meta/r2. This exploit will fail, however, because we have a unique MAC key corresponding to each individual file which MAC's the file and the associated metadata. This MAC is stored in the
 user's revisionMetaData struct within the User struct. Since this has not been swapped, the MAC's will fail.
 
-Filename Dictionary Attack: The malicious server attempts to identify the file by keying on known filenames,
-or precomputed hash values of known filenames. This will fail, because the filename is generated as a random
-UUID, which is saved as file metadata within the User struct, and only shared via RSA encryption to shared users.
-Therefore, to break the filename, the server must break the encryption on the User struct.
+\item
+\textbf{Filename Dictionary Attack}: The malicious server attempts to identify the file by keying on known filenames, or precomputed hash values of known filenames. This will fail, because the filename is generated as a random UUID, which is saved as file metadata within the User struct, and only shared via RSA encryption to shared users. Therefore, to break the filename, the server must break the encryption on the User struct.
 
-ShareFile Man in the Middle Attack: Some external attacker mounts a man in the middle attack on the communication channel
-between two users sharing a message. If the attacker tries to eavesdrop, it will fail, due to the data being encrypted by RSA.
-To decrypt, the attacker would need to know the recipient's private key, which would require breaking the block cipher encryption
-of his User struct. If the attacker tries to tamper with the message it will fail, due to the data containing an RSA Signature.
-In order to tamper with it and resign, the attacker would need to know the sender's private key, which would require breaking the
-block cipher encryption of her User struct.
+\item
+\textbf{ShareFile Man in the Middle Attack}: Some external attacker mounts a man in the middle attack on the communication channel between two users sharing a message. If the attacker tries to eavesdrop, it will fail, due to the data being encrypted by RSA. To decrypt, the attacker would need to know the recipient's private key, which would require breaking the block cipher encryption of his User struct. If the attacker tries to tamper with the message it will fail, due to the data containing an RSA Signature. In order to tamper with it and resign, the attacker would need to know the sender's private key, which would require breaking the block cipher encryption of her User struct.
+
+\end{enumerate}
+
+\end{document}\grid
+\grid
