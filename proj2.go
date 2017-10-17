@@ -384,7 +384,12 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	userdata.storeMetadata(filename, &revisionMetadata)
 
 	debugMsg("StoreFile cipher is: %v", ciphertext)
-	fileMAC := HMAC(fileMacKey, ciphertext)
+
+	index, err := json.Marshal(0)
+	if err != nil {
+		panic(err)
+	}
+	fileMAC := HMAC(fileMacKey, concatenate(ciphertext, index, dataLen))
 	debugMsg("StoreFile MAC is: %v", fileMAC)
 	// ciphertext size == len(IV) + dataLen; len(IV) == userlib.Blocksize
 	// MAC size == 32 bytes
@@ -396,10 +401,17 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	filePath := "file/" + fileID.String()
 	debugMsg("StoreFile filepath is: %v", filePath)
 	userlib.DatastoreSet(filePath, fileData)
-	err := storeUserData(*userdata)
+	err = storeUserData(*userdata)
 	if err != nil {
 		panic(err)
 	}
+}
+
+func concatenate(a []byte, b []byte, lenA uint) ([]byte) {
+	result := make([]byte, lenA)
+	copy(result, a)
+	result = extend(result, b)
+	return result
 }
 
 // This adds on to an existing file.
@@ -437,7 +449,12 @@ func (userdata *User) AppendFile(filename string, data []byte) (err error) {
 	if !ok {
 		return errors.New("File not in datastore, may have been moved")
 	}
-	mac := HMAC(fileMetaData.MACKey, ciphertext)
+
+	index, err := json.Marshal(revisionMetadata.NumRevisions - 1)
+	if err != nil {
+		panic(err)
+	}
+	mac := HMAC(fileMetaData.MACKey, concatenate(ciphertext, index, dataLen))
 	file = extend(file, mac)
 	file = extend(file, ciphertext)
 	userlib.DatastoreSet(filePath, file)
@@ -536,7 +553,11 @@ func (userdata *User) LoadFile(filename string) (data []byte, err error) {
 		debugMsg("LoadFile MAC is: %v", mac)
 		debugMsg("LoadFile cipher is: %v", ciphertext)
 		// check MAC of encrypted data to ensure no tampering
-		if !VerifyHMAC(fileMetaData.MACKey, ciphertext, mac) {
+		index, err := json.Marshal(i)
+		if err != nil {
+			panic(err)
+		}
+		if !VerifyHMAC(fileMetaData.MACKey, concatenate(ciphertext, index, revisionMetadata.RevisionSizes[i]), mac) {
 			return nil, errors.New("File Data has been tampered with.")
 		}
 		plaintext := CFBDecrypt(fileMetaData.EncryptKey, ciphertext)
