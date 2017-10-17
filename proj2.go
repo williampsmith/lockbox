@@ -407,7 +407,7 @@ func (userdata *User) StoreFile(filename string, data []byte) {
 	}
 }
 
-func concatenate(a []byte, b []byte, lenA uint) ([]byte) {
+func concatenate(a []byte, b []byte, lenA uint) []byte {
 	result := make([]byte, lenA)
 	copy(result, a)
 	result = extend(result, b)
@@ -745,8 +745,6 @@ func (userdata *User) RevokeFile(filename string) (err error) {
 	// Revoke access by to everyone by storing random contents =====================
 	userlib.DatastoreSet(oldMetadataPath, sharedMetadataJSON)
 	var randomData []byte
-	mac := HMAC(randomMACKey, randomCiphertext)
-	randomData = extend(randomData, mac)
 	randomData = extend(randomData, randomCiphertext)
 	userlib.DatastoreSet(oldFilePath, randomData)
 	// Done: Revoke access by to everyone by storing random contents =====================
