@@ -69,7 +69,7 @@
 \begin{enumerate}
 \item
 \textbf{Data Swap Attack}: The malicious server does not know the contents of the file, nor the name of the file,
-but can see that file/r corresponds to meta/r, and hence perform a swap of the data at file/r1 with the data at file/r2, and to avoid detection, swap the data at meta<r1> with the data at meta/r2. This exploit will fail, however, because we have a unique MAC key corresponding to each individual file which MAC's the file and the associated metadata. This MAC is stored in the
+but can see that file/r corresponds to meta/r, and hence perform a swap of the data at file/r1 with the data at file/r2, and to avoid detection, swap the data at meta/r1 with the data at meta/r2. This exploit will fail, however, because we have a unique MAC key corresponding to each individual file which MAC's the file and the associated metadata. This MAC is stored in the
 user's revisionMetaData struct within the User struct. Since this has not been swapped, the MAC's will fail.
 
 \item
